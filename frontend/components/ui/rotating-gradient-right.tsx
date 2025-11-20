@@ -36,7 +36,7 @@ export default function RotatingGradientRight() {
               </div>
 
               <p className="text-xs text-zinc-400">
-                Building components… please keep the project open until the process is complete.
+                Initializing workspace… please keep the session open until setup is complete.
               </p>
 
               <Button
@@ -52,11 +52,11 @@ export default function RotatingGradientRight() {
         {/* RIGHT: Rotating gradient with black card */}
         <div className="space-y-4">
           <h2 className="text-lg sm:text-xl lg:text-3xl font-normal text-gray-900 dark:text-white leading-relaxed">
-            Ruixen UI {" "}
-            <span className="text-gray-500 dark:text-gray-400 text-sm sm:text-base lg:text-3xl">Build beautiful, modern interfaces with our comprehensive component library. No setup, no configuration needed.</span>
+            NebulaCode {" "}
+            <span className="text-gray-500 dark:text-gray-400 text-sm sm:text-base lg:text-3xl">Build powerful cloud development environments with real-time collaboration, instant Docker sandboxes, and AI assistance. No setup required.</span>
           </h2>
           <Button variant="link" className="px-0 text-black dark:text-white">
-            Try Ruixen UI <ArrowRight />
+            Try NebulaCode <ArrowRight />
           </Button>
         </div>
       </div>
