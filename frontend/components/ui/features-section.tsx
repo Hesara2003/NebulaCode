@@ -2,10 +2,10 @@ import { Cpu, Lock, Sparkles, Zap } from 'lucide-react'
 
 export function FeaturesSection() {
     return (
-        <section className="py-16 md:py-32">
-            <div className="mx-auto max-w-5xl space-y-12 px-6">
+        <section className="py-32 bg-black relative z-20">
+            <div className="container mx-auto max-w-5xl space-y-12 px-6 relative z-10">
                 <div className="relative z-10 grid items-center gap-4 md:grid-cols-2 md:gap-12">
-                    <h2 className="text-4xl font-semibold">The NebulaCode ecosystem brings together our models</h2>
+                    <h2 className="text-4xl font-semibold text-white">The NebulaCode ecosystem brings together our models</h2>
                     <p className="max-w-sm sm:ml-auto text-gray-400">Empower your team with workflows that adapt to your needs, whether you prefer git synchronization or an AI Agents interface.</p>
                 </div>
                 <div className="relative rounded-3xl p-3 md:-mx-8 lg:col-span-3 bg-white/5 border border-white/10">
@@ -13,7 +13,7 @@ export function FeaturesSection() {
                         <div className="bg-gradient-to-t z-10 from-black/50 absolute inset-0 to-transparent"></div>
                         <img 
                             src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop" 
-                            className="absolute inset-0 z-0 w-full h-full object-cover opacity-80" 
+                            className="absolute inset-0 z-10 w-full h-full object-cover opacity-80" 
                             alt="NebulaCode Interface" 
                         />
                         <div className="absolute inset-0 z-20 flex items-center justify-center">

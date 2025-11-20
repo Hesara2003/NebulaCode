@@ -12,6 +12,7 @@ import ClientFeedback from "@/components/ui/testimonial";
 import Navbar from "@/components/Navbar";
 import FeatureCard from "@/components/FeatureCard";
 import RotatingGradientRight from "@/components/ui/rotating-gradient-right";
+import { Feature108 } from "@/components/ui/feature-108";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -136,47 +137,7 @@ export default function LandingPage() {
       <BrandCarousel />
 
       {/* Features Section */}
-      <section className="py-32 bg-black relative z-20">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-20">
-            <BlurredTextReveal text="Everything you need to build" className="text-3xl md:text-5xl font-bold mb-4 font-heading" />
-            <p className="text-gray-400">Powerful features designed for modern development teams.</p>
-          </div>
-
-          <div ref={featuresRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard 
-              icon={<Code2 className="text-red-500" />}
-              title="Monaco Editor"
-              description="The same powerful editor engine that powers VS Code, now in your browser."
-            />
-            <FeatureCard 
-              icon={<Zap className="text-yellow-500" />}
-              title="AI Assistant"
-              description="Built-in AI to help you write, debug, and explain code in real-time."
-            />
-            <FeatureCard 
-              icon={<Globe className="text-red-500" />}
-              title="Real-time Collab"
-              description="Code together with your team in real-time, just like Google Docs."
-            />
-            <FeatureCard 
-              icon={<Terminal className="text-green-500" />}
-              title="Integrated Terminal"
-              description="Full access to a Linux terminal with Docker support right in the browser."
-            />
-            <FeatureCard 
-              icon={<Layers className="text-pink-500" />}
-              title="Docker Sandboxes"
-              description="Each workspace runs in its own isolated container. Secure and fast."
-            />
-            <FeatureCard 
-              icon={<Cpu className="text-cyan-500" />}
-              title="Multi-Language"
-              description="Support for Node.js, Python, Go, Rust, and more out of the box."
-            />
-          </div>
-        </div>
-      </section>
+      <Feature108 />
 
       {/* How It Works Section */}
       <section className="py-32 bg-[#050505] relative z-20 border-t border-white/5">

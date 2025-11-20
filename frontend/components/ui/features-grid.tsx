@@ -6,8 +6,8 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 
 export function FeaturesGrid() {
     return (
-        <section className="px-4 py-16 md:py-32">
-            <div className="mb-12 text-center max-w-3xl mx-auto">
+        <section className="py-32 bg-black relative z-20">
+            <div className="mb-12 text-center max-w-3xl mx-auto px-6 relative z-10">
                 <h2 className="text-3xl md:text-5xl font-bold mb-6 font-heading">
                     Everything you need to <span className="text-red-500">ship faster</span>
                 </h2>
@@ -15,7 +15,7 @@ export function FeaturesGrid() {
                     A complete toolkit designed for modern development teams. From code to deployment, we've got you covered.
                 </p>
             </div>
-            <div className="mx-auto grid max-w-5xl border border-white/10 md:grid-cols-2 bg-white/5 rounded-3xl overflow-hidden">
+            <div className="mx-auto grid max-w-5xl border border-white/10 md:grid-cols-2 bg-black/20 rounded-3xl overflow-hidden px-0">
                 <div>
                     <div className="p-6 sm:p-12">
                         <span className="text-muted-foreground flex items-center gap-2 text-gray-400">
