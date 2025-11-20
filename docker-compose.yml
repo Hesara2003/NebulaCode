@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - backend
+    networks:
+      - nebulacode-network
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=nebula
+      - DATABASE_PASSWORD=nebula_password
+      - DATABASE_NAME=nebulacode
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nebulacode-network
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=nebula
+      - POSTGRES_PASSWORD=nebula_password
+      - POSTGRES_DB=nebulacode
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nebulacode-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nebulacode-network
+
+networks:
+  nebulacode-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
