@@ -1,10 +1,11 @@
 "use client";
 
-import CodeEditor from "@/components/CodeEditor";
+
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import TerminalComponent from "@/components/TerminalComponent";
-import { Play, Share2, Download } from "lucide-react";
+import EditorPane from "@/components/editor/EditorPane";
+import { Play, Share2 } from "lucide-react";
 
 export default function Home() {
   return (
@@ -41,19 +42,7 @@ export default function Home() {
 
         {/* Editor Area */}
         <div className="flex-grow relative bg-[#1e1e1e]">
-             <CodeEditor 
-                language="javascript"
-                theme="vs-dark"
-                defaultValue={`// Welcome to NebulaCode
-// Start writing your code here...
-
-function greet(name) {
-  return "Hello, " + name + "!";
-}
-
-console.log(greet("Developer"));
-`}
-            />
+          <EditorPane workspaceId="demo-workspace" fileId="welcome-file" />
         </div>
 
         {/* Bottom Panel (Terminal) */}
