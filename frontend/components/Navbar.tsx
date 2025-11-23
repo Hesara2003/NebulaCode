@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 export default function Navbar() {
@@ -12,7 +14,7 @@ export default function Navbar() {
           <Link href="/pricing" className="text-sm text-gray-400 hover:text-white transition-colors">Pricing</Link>
           <Link href="/docs" className="text-sm text-gray-400 hover:text-white transition-colors">Docs</Link>
           <Link 
-            href="/editor" 
+            href="#live-preview" 
             className="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-full hover:bg-red-600 transition-colors"
           >
             Launch Editor

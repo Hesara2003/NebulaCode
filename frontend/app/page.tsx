@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -13,6 +15,16 @@ import Navbar from "@/components/Navbar";
 import FeatureCard from "@/components/FeatureCard";
 import RotatingGradientRight from "@/components/ui/rotating-gradient-right";
 import { Feature108 } from "@/components/ui/feature-108";
+import CodeEditor from "@/components/CodeEditor";
+import Sidebar from "@/components/Sidebar";
+import ActivityBar from "@/components/ActivityBar";
+import dynamic from "next/dynamic";
+import { Play, Share2 } from "lucide-react";
+
+const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
+  ssr: false,
+});
+
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -130,6 +142,67 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Collaboration Preview */}
+      <section id="live-preview" className="relative z-20 mx-auto mt-12 max-w-6xl px-6">
+        <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-lg shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Live Workspace Preview
+            </div>
+            <PresenceBar />
+          </div>
+          <div className="flex h-[360px] overflow-hidden rounded-b-2xl">
+            <ActivityBar />
+            <Sidebar />
+            <div className="flex flex-1 flex-col bg-[#1e1e1e]">
+              <div className="flex items-center justify-between border-b border-[#2d2d2d] px-4 py-2 text-sm text-gray-300">
+                <span className="font-mono">app.tsx</span>
+                <div className="flex items-center gap-3 text-xs uppercase tracking-wide">
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <Zap size={12} /> AI Assist
+                  </span>
+                  <span className="flex items-center gap-1 text-blue-400">
+                    <Share2 size={12} /> Share
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-1">
+                <CodeEditor
+                  language="typescript"
+                  theme="vs-dark"
+                  defaultValue={`/**
+ * NebulaCode Presence Demo
+ */
+
+export const collaborators = [
+  "Ari",
+  "Nova",
+  "Sol",
+  "Zen"
+];
+`}
+                />
+              </div>
+              <div className="border-t border-[#2d2d2d] bg-[#151515] px-4 py-2 text-xs text-gray-400">
+                Participants who join the room instantly appear above with their colors and initials.
+              </div>
+            </div>
+            <div className="hidden w-72 border-l border-white/10 bg-[#151515] p-4 lg:flex lg:flex-col lg:justify-between">
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-white">Presence Insights</h3>
+                <p className="text-xs text-gray-400">
+                  This panel reacts when awareness updates arrive from Yjs. Try opening another tab to see the list change in real time.
+                </p>
+              </div>
+              <button className="mt-6 flex items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-blue-500">
+                <Share2 size={12} /> Invite Teammate
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Rotating Gradient Section */}
       <RotatingGradientRight />
 
@@ -151,7 +224,7 @@ export default function LandingPage() {
                 <div className="relative">
                     <div className="text-8xl font-bold text-white/5 absolute -top-10 -left-4 font-heading">01</div>
                     <h3 className="text-2xl font-bold mb-4 relative z-10 font-heading">Create Workspace</h3>
-                    <p className="text-gray-400 relative z-10">Spin up a new environment in seconds. Choose your stack, and we'll provision the containers instantly.</p>
+                    <p className="text-gray-400 relative z-10">Spin up a new environment in seconds. Choose your stack, and we will provision the containers instantly.</p>
                 </div>
                 <div className="relative">
                     <div className="text-8xl font-bold text-white/5 absolute -top-10 -left-4 font-heading">02</div>
