@@ -23,7 +23,7 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
   const renderTabs = () => {
     if (tabs.length === 0) {
       return (
-        <div className="flex h-full items-center px-4 text-xs uppercase tracking-[0.3em] text-gray-500">
+        <div className="flex h-full min-w-40 items-center justify-center rounded-t px-4 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-gray-500/80">
           Loading file...
         </div>
       );
@@ -32,40 +32,40 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
     return tabs.map((tab) => {
       const isActive = tab.id === activeTabId;
       return (
-        <div
+        <button
           key={tab.id}
-          role="tab"
-          aria-selected={isActive}
-          tabIndex={0}
+          type="button"
           onClick={() => onSelect(tab.id)}
           onKeyDown={(event) => handleKeyDown(event, tab.id)}
           className={cn(
-            "group flex h-full min-w-[140px] max-w-[220px] items-center gap-2 border-r border-[#1e1e1e] px-4 text-sm transition",
+            "group flex h-full min-w-[140px] max-w-60 items-center justify-between rounded-t px-3 py-1 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
             isActive
-              ? "bg-[#1e1e1e] text-white"
-              : "bg-[#2d2d2d] text-gray-400 hover:bg-[#252526] hover:text-white"
+              ? "bg-[#2a2d2e] text-white shadow-[inset_0_-2px_0_0_rgba(99,179,237,0.7)]"
+              : "bg-[#1f1f22] text-gray-400 hover:bg-[#252526] hover:text-gray-100"
           )}
           title={tab.path}
         >
-          <span className="truncate font-medium">{tab.name}</span>
+          <span className="flex flex-1 items-center truncate font-medium leading-none">
+            {tab.name}
+          </span>
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onClose(tab.id);
             }}
-            className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            className="ml-0.2 flex items-center justify-center rounded-sm p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50"
             aria-label={`Close ${tab.name}`}
           >
             <X size={14} />
           </button>
-        </div>
+        </button>
       );
     });
   };
 
   return (
-    <div className="flex h-full min-w-0 items-stretch overflow-x-auto" role="tablist">
+    <div className="flex h-full min-w-0 items-stretch gap-0.5 overflow-x-auto bg-[#151518] px-1">
       {renderTabs()}
     </div>
   );
