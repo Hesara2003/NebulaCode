@@ -1,14 +1,22 @@
 "use client";
 
-import { WebsocketProvider } from "y-websocket";
-import type { Doc } from "yjs";
+import type { Socket } from "socket.io-client";
+import { io } from "socket.io-client";
+import type { PresenceUser } from "./store";
 
-const DEFAULT_WS_ENDPOINT =
-  process.env.NEXT_PUBLIC_COLLAB_ENDPOINT ?? "ws://localhost:1234";
-const DEFAULT_ROOM = "nebula-code-placeholder-room";
+const DEFAULT_HTTP_ENDPOINT =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 
-export function createWebsocketProvider(doc: Doc) {
-  return new WebsocketProvider(DEFAULT_WS_ENDPOINT, DEFAULT_ROOM, doc, {
-    connect: false,
+export function createCollaborationSocket(user: PresenceUser): Socket {
+  const url = `${DEFAULT_HTTP_ENDPOINT.replace(/\/$/, "")}/editor-sync`;
+  return io(url, {
+    transports: ["websocket"],
+    autoConnect: false,
+    auth: {
+      userId: user.id,
+      name: user.name,
+      initials: user.initials,
+      color: user.color,
+    },
   });
 }

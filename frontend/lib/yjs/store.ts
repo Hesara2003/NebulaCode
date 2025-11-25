@@ -1,10 +1,10 @@
 "use client";
 import axios from "axios";
 import { create } from "zustand";
-import type { WebsocketProvider } from "y-websocket";
+import type { Socket } from "socket.io-client";
 import type { Doc } from "yjs";
 import { doc } from "./document";
-import { createWebsocketProvider } from "./provider";
+import { createCollaborationSocket } from "./provider";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
@@ -17,7 +17,7 @@ type PresenceUser = {
 
 interface CollaborationState {
   doc: Doc;
-  provider: WebsocketProvider | null;
+  socket: Socket | null;
   status: ConnectionStatus;
   currentUser: PresenceUser | null;
   participants: PresenceUser[];
@@ -89,84 +89,82 @@ async function fetchCurrentUser(): Promise<PresenceUser> {
 
 const useCollaborationStore = create<CollaborationState>((set, get) => ({
   doc,
-  provider: null,
+  socket: null,
   status: "disconnected",
   currentUser: null,
   participants: [],
   cleanup: null,
   connect: () => {
-    if (get().provider) {
+    if (get().socket) {
       return;
     }
 
     set({ status: "connecting" });
 
-    const provider = createWebsocketProvider(doc);
-    const awareness = provider.awareness;
+    const establishConnection = async () => {
+      try {
+        const existingUser = get().currentUser ?? (await fetchCurrentUser());
 
-        const handleStatus = (event: { status: ConnectionStatus }) => {
-      console.info(`[Yjs] connection status: ${event.status}`);
-      set({ status: event.status });
+        const socket = createCollaborationSocket(existingUser);
+
+        const handleConnect = () => {
+          console.info("[Collab] socket connected", socket.id);
+          set({ status: "connected" });
+        };
+
+        const handleDisconnect = () => {
+          console.warn("[Collab] socket disconnected");
+          set({ status: "disconnected", participants: [] });
+        };
+
+        const handleConnectError = (error: Error) => {
+          console.error("[Collab] socket error", error);
+          set({ status: "disconnected" });
+        };
+
+        const handlePresenceUpdate = (participants: PresenceUser[]) => {
+          set({ participants });
+        };
+
+        socket.on("connect", handleConnect);
+        socket.on("disconnect", handleDisconnect);
+        socket.on("connect_error", handleConnectError);
+        socket.on("presence:update", handlePresenceUpdate);
+
+        set({
+          socket,
+          currentUser: existingUser,
+          cleanup: () => {
+            socket.off("connect", handleConnect);
+            socket.off("disconnect", handleDisconnect);
+            socket.off("connect_error", handleConnectError);
+            socket.off("presence:update", handlePresenceUpdate);
+            socket.disconnect();
+          },
+        });
+
+        socket.connect();
+      } catch (error) {
+        console.error("[Collab] unable to connect", error);
+        set({ status: "disconnected", socket: null });
+      }
     };
 
-    const handleClose = (event: CloseEvent | null, _provider: WebsocketProvider) => {
-      console.warn("[Yjs] connection closed", event?.code, event?.reason);
-    };
-
-    const handleError = (event: Event) => {
-      console.error("[Yjs] connection error", event);
-    };
-
-    const handleAwarenessUpdate = () => {
-      const states = Array.from(awareness.getStates().values());
-      const participants = states
-        .map((state) => state.user as PresenceUser | undefined)
-        .filter((user): user is PresenceUser => Boolean(user));
-      set({ participants });
-    };
-
-    provider.on("status", handleStatus);
-    provider.on("connection-close", handleClose);
-    provider.on("connection-error", handleError);
-    awareness.on("update", handleAwarenessUpdate);
-
-    const assignLocalState = async () => {
-      const existingUser = get().currentUser;
-      const user = existingUser ?? (await fetchCurrentUser());
-      awareness.setLocalStateField("user", user);
-      set({ currentUser: user });
-      handleAwarenessUpdate();
-    };
-
-    assignLocalState().catch((error) => {
-      console.error("[Yjs] unable to assign local presence", error);
-    });
-
-    provider.connect();
-
-    set({
-      provider,
-      cleanup: () => {
-        awareness.off("update", handleAwarenessUpdate);
-        awareness.setLocalState({});
-        provider.off("status", handleStatus);
-        provider.off("connection-close", handleClose);
-        provider.off("connection-error", handleError);
-      },
+    establishConnection().catch((error) => {
+      console.error("[Collab] connection setup failed", error);
+      set({ status: "disconnected", socket: null });
     });
   },
   disconnect: () => {
-    const { provider, cleanup } = get();
-    if (!provider) {
+    const { socket, cleanup } = get();
+    if (!socket) {
       return;
     }
 
     cleanup?.();
-    provider.disconnect();
-    provider.destroy();
 
     set({
-      provider: null,
+      socket: null,
       status: "disconnected",
       cleanup: null,
       participants: [],
