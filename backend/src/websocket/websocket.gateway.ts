@@ -11,10 +11,11 @@ import { Socket } from 'socket.io';
 
 @WebSocketGateway({
   cors: { origin: '*' },
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
 })
 export class WebsocketGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   afterInit() {
     console.log('WebSocket Gateway Initialized');
   }
@@ -39,16 +40,16 @@ export class WebsocketGateway
 
   // Execute handler (placeholder)
   @SubscribeMessage('execute')
-handleExecute(
-  @MessageBody() payload: any,
-  @ConnectedSocket() client: Socket,
-) {
-  console.log("Execute request received:", payload);
+  handleExecute(
+    @MessageBody() payload: any,
+    @ConnectedSocket() client: Socket,
+  ) {
+    console.log("Execute request received:", payload);
 
-  return client.emit("execute-response", {
-    status: "OK",
-    message: "Execute placeholder - not implemented yet",
-  });
-}
+    return client.emit("execute-response", {
+      status: "OK",
+      message: "Execute placeholder - not implemented yet",
+    });
+  }
 
 }
