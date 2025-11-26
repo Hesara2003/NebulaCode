@@ -1,59 +1,38 @@
 "use client";
 
-import CodeEditor from "@/components/CodeEditor";
+import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import TerminalComponent from "@/components/TerminalComponent";
-import { Play, Share2, Download } from "lucide-react";
+import EditorPane from "@/components/editor/EditorPane";
 
 export default function Home() {
+  const [activeFileId, setActiveFileId] = useState<string | null>("welcome-file");
+
+  const handleOpenFile = (fileId: string) => {
+    setActiveFileId(fileId);
+  };
+
+  const handleActiveFileChange = (fileId: string | null) => {
+    setActiveFileId(fileId);
+  };
+
   return (
     <main className="flex h-screen w-screen bg-[#1e1e1e] text-white overflow-hidden">
       {/* Activity Bar (Leftmost) */}
       <ActivityBar />
 
       {/* Sidebar (Explorer) */}
-      <Sidebar />
+      <Sidebar activeFileId={activeFileId} onOpenFile={handleOpenFile} />
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-grow h-full">
-        
-        {/* Top Bar / Tabs */}
-        <div className="h-10 bg-[#1e1e1e] flex items-center border-b border-[#1e1e1e]">
-            <div className="flex h-full">
-                <div className="px-4 flex items-center gap-2 bg-[#1e1e1e] border-t-2 border-blue-500 text-sm text-white min-w-[120px] justify-between">
-                    <span>main.js</span>
-                    <span className="hover:bg-gray-700 rounded-full p-0.5 cursor-pointer">×</span>
-                </div>
-                <div className="px-4 flex items-center gap-2 bg-[#2d2d2d] text-sm text-gray-400 min-w-[120px] border-r border-[#1e1e1e] cursor-pointer hover:bg-[#252526]">
-                    <span>package.json</span>
-                </div>
-            </div>
-            <div className="flex-grow bg-[#252526] h-full flex items-center justify-end px-4 gap-3">
-                 <button className="flex items-center gap-2 px-3 py-1 bg-green-700 hover:bg-green-600 rounded text-xs font-medium transition-colors">
-                    <Play size={14} /> Run
-                </button>
-                <button className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors">
-                    <Share2 size={14} /> Share
-                </button>
-            </div>
-        </div>
-
-        {/* Editor Area */}
-        <div className="flex-grow relative bg-[#1e1e1e]">
-             <CodeEditor 
-                language="javascript"
-                theme="vs-dark"
-                defaultValue={`// Welcome to NebulaCode
-// Start writing your code here...
-
-function greet(name) {
-  return "Hello, " + name + "!";
-}
-
-console.log(greet("Developer"));
-`}
-            />
+      <div className="flex flex-col grow h-full">
+        <div className="relative grow bg-[#1e1e1e]">
+          <EditorPane
+            workspaceId="demo-workspace"
+            fileId={activeFileId}
+            onActiveFileChange={handleActiveFileChange}
+          />
         </div>
 
         {/* Bottom Panel (Terminal) */}
@@ -64,7 +43,7 @@ console.log(greet("Developer"));
                 <span className="hover:text-white cursor-pointer h-full flex items-center">Debug Console</span>
                 <span className="hover:text-white cursor-pointer h-full flex items-center">Problems</span>
             </div>
-            <div className="flex-grow overflow-hidden">
+            <div className="grow overflow-hidden">
                 <TerminalComponent />
             </div>
         </div>
