@@ -1,5 +1,7 @@
-import React from 'react';
-import { Files, Search, GitGraph, Play, Settings, User } from 'lucide-react';
+"use client";
+
+import React from "react";
+import { Files, Search, GitGraph, Play, Settings, User } from "lucide-react";
 
 const ActivityBar = () => {
     return (
@@ -12,7 +14,7 @@ const ActivityBar = () => {
             <User className="text-gray-500 hover:text-white cursor-pointer transition-colors" size={24} />
             <Settings className="text-gray-500 hover:text-white cursor-pointer transition-colors" size={24} />
         </div>
-    )
-}
+    );
+};
 
 export default ActivityBar;

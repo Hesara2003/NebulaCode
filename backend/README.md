@@ -96,3 +96,20 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+---
+
+## NebulaCode Workspace API (Day 1)
+
+- `GET /workspaces/:workspaceId/files/:fileId` returns mock workspace file metadata plus content. The frontend calls this endpoint via `frontend/lib/api/files.ts` to hydrate the Monaco editor.
+- Request logging middleware (`RequestLoggerMiddleware`) prints structured logs for every HTTP request (method, path, status, duration) to aid debugging.
+- CORS is enabled globally so the Next.js frontend at `http://localhost:3000` can request the backend at `http://localhost:4000` during development.
+
+### Quick Test
+
+```bash
+npm run start:dev
+curl http://localhost:4000/workspaces/demo-workspace/files/welcome-file | jq
+```
+
+You should see the demo TypeScript file payload in the response and a corresponding `[HTTP] GET ... 200` log entry in the server console.
