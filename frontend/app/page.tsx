@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -11,6 +13,16 @@ import ClientFeedback from "@/components/ui/testimonial";
 import Navbar from "@/components/Navbar";
 import RotatingGradientRight from "@/components/ui/rotating-gradient-right";
 import { Feature108 } from "@/components/ui/feature-108";
+import CodeEditor from "@/components/CodeEditor";
+import Sidebar from "@/components/Sidebar";
+import ActivityBar from "@/components/ActivityBar";
+import dynamic from "next/dynamic";
+import { Play, Share2 } from "lucide-react";
+
+const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
+  ssr: false,
+});
+
 import { Timeline } from "@/components/ui/timeline";
 import StorySection from "@/components/StorySection";
 
@@ -208,6 +220,67 @@ export default function LandingPage() {
             <div className="text-center">
               <div className="text-2xl md:text-3xl font-bold text-white mb-1">&lt;100ms</div>
               <div className="text-sm text-gray-500">Latency</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Collaboration Preview */}
+      <section id="live-preview" className="relative z-20 mx-auto mt-12 max-w-6xl px-6">
+        <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur-lg shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Live Workspace Preview
+            </div>
+            <PresenceBar />
+          </div>
+          <div className="flex h-[360px] overflow-hidden rounded-b-2xl">
+            <ActivityBar />
+            <Sidebar />
+            <div className="flex flex-1 flex-col bg-[#1e1e1e]">
+              <div className="flex items-center justify-between border-b border-[#2d2d2d] px-4 py-2 text-sm text-gray-300">
+                <span className="font-mono">app.tsx</span>
+                <div className="flex items-center gap-3 text-xs uppercase tracking-wide">
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <Zap size={12} /> AI Assist
+                  </span>
+                  <span className="flex items-center gap-1 text-blue-400">
+                    <Share2 size={12} /> Share
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-1">
+                <CodeEditor
+                  language="typescript"
+                  theme="vs-dark"
+                  defaultValue={`/**
+ * NebulaCode Presence Demo
+ */
+
+export const collaborators = [
+  "Ari",
+  "Nova",
+  "Sol",
+  "Zen"
+];
+`}
+                />
+              </div>
+              <div className="border-t border-[#2d2d2d] bg-[#151515] px-4 py-2 text-xs text-gray-400">
+                Participants who join the room instantly appear above with their colors and initials.
+              </div>
+            </div>
+            <div className="hidden w-72 border-l border-white/10 bg-[#151515] p-4 lg:flex lg:flex-col lg:justify-between">
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-white">Presence Insights</h3>
+                <p className="text-xs text-gray-400">
+                  This panel reacts when awareness updates arrive from Yjs. Try opening another tab to see the list change in real time.
+                </p>
+              </div>
+              <button className="mt-6 flex items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-blue-500">
+                <Share2 size={12} /> Invite Teammate
+              </button>
             </div>
           </div>
         </div>
