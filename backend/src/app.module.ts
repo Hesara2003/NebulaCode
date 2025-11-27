@@ -3,11 +3,13 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+
 import { AuthModule } from './auth';
 import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your branch
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     }),
     WorkspacesModule,
     AuthModule,
+    WorkspaceModule, // <-- Inserted cleanly
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],
