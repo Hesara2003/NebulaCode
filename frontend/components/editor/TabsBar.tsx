@@ -55,7 +55,7 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
               event.stopPropagation();
               onClose(tab.id);
             }}
-            className="ml-0.2 flex items-center justify-center rounded-sm p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50"
+            className="ml-1 flex items-center justify-center rounded-sm p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50"
             aria-label={`Close ${tab.name}`}
           >
             <X size={14} />

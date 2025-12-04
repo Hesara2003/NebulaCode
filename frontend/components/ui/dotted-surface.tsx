@@ -14,13 +14,13 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    particles: THREE.Points[];
     animationId: number;
     count: number;
   } | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const targetContainer = containerRef.current;
+    if (!targetContainer) return;
 
     const SEPARATION = 150;
     const AMOUNTX = 40;
@@ -64,16 +64,15 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       if (document && document.body) {
         document.body.appendChild(canvas);
         appendedToBody = true;
-      } else if (containerRef.current) {
-        containerRef.current.appendChild(canvas);
+      } else if (targetContainer) {
+        targetContainer.appendChild(canvas);
       }
-    } catch (e) {
+    } catch {
       // Fallback to mounting inside the container if body append fails for any reason
-      if (containerRef.current) containerRef.current.appendChild(canvas);
+      if (targetContainer) targetContainer.appendChild(canvas);
     }
 
     // Create particles
-    const particles: THREE.Points[] = [];
     const positions: number[] = [];
     const colors: number[] = [];
 
@@ -141,14 +140,6 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       positionAttribute.needsUpdate = true;
 
       // Update point sizes based on wave
-      const customMaterial = material as THREE.PointsMaterial & {
-        uniforms?: any;
-      };
-      if (!customMaterial.uniforms) {
-        // For dynamic size changes, we'd need a custom shader
-        // For now, keeping constant size for performance
-      }
-
       renderer.render(scene, camera);
       count += 0.1;
     };
@@ -170,7 +161,6 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       scene,
       camera,
       renderer,
-      particles: [points],
       animationId,
       count,
     };
@@ -200,8 +190,8 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
           const domEl = sceneRef.current.renderer.domElement as HTMLCanvasElement;
           if (appendedToBody && document && document.body && document.body.contains(domEl)) {
             document.body.removeChild(domEl);
-          } else if (containerRef.current && containerRef.current.contains(domEl)) {
-            containerRef.current.removeChild(domEl);
+          } else if (targetContainer && targetContainer.contains(domEl)) {
+            targetContainer.removeChild(domEl);
           }
         }
       }
