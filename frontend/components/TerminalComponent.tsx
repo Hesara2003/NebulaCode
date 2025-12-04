@@ -4,6 +4,14 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { io } from "socket.io-client";
+import { getApiBaseUrl } from "@/lib/api/httpClient";
+
+const resolveTerminalSocketUrl = () => {
+  const explicitTerminalUrl = process.env.NEXT_PUBLIC_TERMINAL_SOCKET_URL;
+  const fallbackSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  const baseUrl = explicitTerminalUrl ?? fallbackSocketUrl ?? getApiBaseUrl();
+  return baseUrl.replace(/\/$/, "");
+};
 
 const TerminalComponent = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -57,10 +65,11 @@ const TerminalComponent = () => {
       window.addEventListener("resize", handleResize);
 
       // Connect to backend via Socket.IO
-      const socket = io("http://localhost:4000", {
+      const socket = io(resolveTerminalSocketUrl(), {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5,
+        transports: ["websocket"],
       });
 
       socket.on("connect", () => {
