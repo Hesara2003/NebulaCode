@@ -5,7 +5,8 @@ import MonacoEditor from "./MonacoEditor";
 import TabsBar from "./TabsBar";
 import type { FileEntity } from "@/types/editor";
 import { getFile } from "@/lib/api/files";
-import { Play, Share2 } from "lucide-react";
+import { createRun, type RunStatus } from "@/lib/api/run";
+import { Loader2, Play, Share2 } from "lucide-react";
 
 interface EditorPaneProps {
   workspaceId: string;
@@ -19,6 +20,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [activeFile, setActiveFile] = useState<FileEntity | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeRun, setActiveRun] = useState<{ runId: string; status: RunStatus } | null>(null);
+  const [isRunRequestPending, setIsRunRequestPending] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
 
@@ -46,6 +50,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         setActiveFile(data);
         setActiveTabId(data.id);
         onActiveFileChange?.(data.id);
+        setActiveRun(null);
+        setRunError(null);
         setOpenTabs((prev) => {
           const exists = prev.some((tab) => tab.id === data.id);
           if (exists) {
@@ -75,6 +81,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setOpenTabs([]);
       setIsLoading(false);
       setErrorMessage(null);
+      setActiveRun(null);
+      setRunError(null);
       return;
     }
 
@@ -136,6 +144,29 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     );
   };
 
+  const handleRun = async () => {
+    if (!activeFile || isRunRequestPending) {
+      return;
+    }
+
+    setRunError(null);
+    setIsRunRequestPending(true);
+    try {
+      const response = await createRun({
+        workspaceId,
+        fileId: activeFile.id,
+        language: activeFile.language,
+      });
+
+      setActiveRun({ runId: response.runId, status: response.status });
+    } catch (error) {
+      console.error("Failed to start run", error);
+      setRunError("Unable to start run. Please try again.");
+    } finally {
+      setIsRunRequestPending(false);
+    }
+  };
+
   const resolvedFile: FileEntity =
     activeFile ?? {
       id: "placeholder-file",
@@ -160,14 +191,32 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           />
         </div>
         <div className="hidden items-center gap-3 px-4 sm:flex">
-          <button className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-green-600">
-            <Play size={14} /> Run
+          {activeRun ? (
+            <RunStatusPill status={activeRun.status} />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              void handleRun();
+            }}
+            disabled={!activeFile || isLoading || isRunRequestPending || (activeRun && (activeRun.status === "queued" || activeRun.status === "running"))}
+            title={!activeFile ? "Open a file to run" : isLoading ? "File is still loading" : undefined}
+            className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRunRequestPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            {isRunRequestPending ? "Starting..." : "Run"}
           </button>
           <button className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500">
             <Share2 size={14} /> Share
           </button>
         </div>
       </div>
+
+      {runError ? (
+        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-300">
+          {runError}
+        </div>
+      ) : null}
 
       <div className="relative flex-1">
         {isLoading ? (
@@ -197,6 +246,25 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         />
       </div>
     </div>
+  );
+};
+
+const statusStyles: Record<RunStatus, { label: string; dot: string; text: string }> = {
+  queued: { label: "Queued", dot: "bg-yellow-400", text: "text-yellow-200 bg-yellow-400/10" },
+  running: { label: "Running", dot: "bg-emerald-400", text: "text-emerald-200 bg-emerald-400/10" },
+  completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10" },
+  failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10" },
+  cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10" },
+  unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
+};
+
+const RunStatusPill = ({ status }: { status: RunStatus }) => {
+  const style = statusStyles[status] ?? statusStyles.unknown;
+  return (
+    <span className={`flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${style.text}`}>
+      <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
+      {style.label}
+    </span>
   );
 };
 
