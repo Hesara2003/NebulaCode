@@ -13,6 +13,7 @@ import {
   type RunStatus,
 } from "@/lib/api/run";
 import { downloadTextFile } from "@/lib/utils";
+import { connectRunWebSocket } from "@/lib/runWebSocket";
 import { Download, Loader2, Play, RotateCcw, Share2 } from "lucide-react";
 
 interface EditorPaneProps {
@@ -47,6 +48,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [isRunRequestPending, setIsRunRequestPending] = useState(false);
   const [logsDownloadPending, setLogsDownloadPending] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [pollingError, setPollingError] = useState<string | null>(null);
+  const [isManualStatusRefreshPending, setIsManualStatusRefreshPending] = useState(false);
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
   const runStatesRef = useRef<Record<string, RunSnapshot>>({});
@@ -289,62 +292,118 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     }
   };
 
-  useEffect(() => {
-    if (!isAnyRunInFlight) {
+  const refreshActiveRunStatuses = useCallback(async () => {
+    const entries = Object.entries(runStatesRef.current).filter(
+      ([, snapshot]) => (snapshot ? isRunActive(snapshot.status) : false)
+    ) as Array<[string, RunSnapshot]>;
+
+    if (!entries.length) {
+      setPollingError(null);
       return;
     }
 
-    let cancelled = false;
+    try {
+      const updates = await Promise.all(
+        entries.map(async ([fileKey, snapshot]) => {
+          const data = await getRunStatus(snapshot.runId);
+          return { fileKey, data };
+        })
+      );
 
-    const pollStatuses = async () => {
-      const entries = Object.entries(runStatesRef.current).filter(([, snapshot]) =>
-        snapshot ? isRunActive(snapshot.status) : false
-      ) as Array<[string, RunSnapshot]>;
-
-      if (!entries.length) {
-        return;
-      }
-
-      try {
-        const updates = await Promise.all(
-          entries.map(async ([fileKey, snapshot]) => {
-            const data = await getRunStatus(snapshot.runId);
-            return { fileKey, data };
-          })
-        );
-
-        if (cancelled) {
-          return;
+      setRunStates((prev) => {
+        const next = { ...prev } as Record<string, RunSnapshot>;
+        for (const update of updates) {
+          const existing = next[update.fileKey];
+          next[update.fileKey] = {
+            fileId: update.fileKey,
+            fileName: existing?.fileName ?? update.data.fileId,
+            runId: update.data.runId,
+            status: update.data.status,
+            createdAt: update.data.createdAt,
+            updatedAt: update.data.updatedAt,
+          };
         }
+        return next;
+      });
+      setPollingError(null);
+    } catch (error) {
+      console.error("Failed to refresh run status", error);
+      setPollingError("Unable to refresh run status. Retrying automatically.");
+    }
+  }, []);
 
-        setRunStates((prev) => {
-          const next = { ...prev } as Record<string, RunSnapshot>;
-          for (const update of updates) {
-            const existing = next[update.fileKey];
-            next[update.fileKey] = {
-              fileId: update.fileKey,
-              fileName: existing?.fileName ?? update.data.fileId,
-              runId: update.data.runId,
-              status: update.data.status,
-              createdAt: update.data.createdAt,
-              updatedAt: update.data.updatedAt,
-            };
-          }
-          return next;
-        });
-      } catch (error) {
-        console.error("Failed to refresh run status", error);
-      }
+  const handleManualStatusRefresh = async () => {
+    if (isManualStatusRefreshPending) {
+      return;
+    }
+    setIsManualStatusRefreshPending(true);
+    try {
+      await refreshActiveRunStatuses();
+    } finally {
+      setIsManualStatusRefreshPending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAnyRunInFlight) {
+      setPollingError(null);
+      return;
+    }
+
+    const tick = () => {
+      void refreshActiveRunStatuses();
     };
 
-    void pollStatuses();
-    const intervalId = window.setInterval(pollStatuses, POLL_INTERVAL_MS);
+    tick();
+    const intervalId = window.setInterval(tick, POLL_INTERVAL_MS);
 
     return () => {
-      cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isAnyRunInFlight]);
+  }, [isAnyRunInFlight, refreshActiveRunStatuses]);
+
+  useEffect(() => {
+    if (!activeRun?.runId) {
+      return;
+    }
+
+    const currentRun = activeRun;
+
+    const disconnect = connectRunWebSocket(currentRun.runId, {
+      onStatus: (payload) => {
+        setRunStates((prev) => {
+          const existing = prev[currentRun.fileId];
+          return {
+            ...prev,
+            [currentRun.fileId]: {
+              fileId: currentRun.fileId,
+              fileName: existing?.fileName ?? currentRun.fileName,
+              runId: currentRun.runId,
+              status: (payload.status as RunStatus) ?? existing?.status ?? "unknown",
+              createdAt: existing?.createdAt,
+              updatedAt: payload.updatedAt ?? new Date().toISOString(),
+            },
+          };
+        });
+      },
+      onLog: (payload) => {
+        console.warn(
+          "[RunWebSocket] Received log payload before streaming is wired up:",
+          payload,
+        );
+      },
+      onError: (error) => {
+        console.warn(
+          `[RunWebSocket] Placeholder connection error for run ${currentRun.runId}:`,
+          error,
+        );
+      },
+    });
+
+    return () => {
+      disconnect();
+    };
+  }, [activeRun]);
 
   const resolvedFile: FileEntity =
     activeFile ?? {
@@ -428,6 +487,22 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       {runError ? (
         <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-300">
           {runError}
+        </div>
+      ) : null}
+
+      {pollingError ? (
+        <div className="flex items-center justify-between gap-3 bg-yellow-900/40 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-wide text-yellow-100">
+          <span>{pollingError}</span>
+          <button
+            type="button"
+            onClick={() => {
+              void handleManualStatusRefresh();
+            }}
+            disabled={isManualStatusRefreshPending}
+            className="rounded bg-yellow-600 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-yellow-50 transition enabled:hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isManualStatusRefreshPending ? "Refreshing..." : "Retry now"}
+          </button>
         </div>
       ) : null}
 
