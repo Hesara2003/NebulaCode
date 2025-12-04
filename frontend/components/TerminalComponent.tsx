@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -13,17 +13,31 @@ const resolveTerminalSocketUrl = () => {
   return baseUrl.replace(/\/$/, "");
 };
 
+const TERMINAL_CLEAR_EVENT = "nebula-terminal-clear";
+
 const TerminalComponent = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
   const terminalInstanceRef = useRef<Terminal | null>(null);
 
   useEffect(() => {
-    setMounted(true);
+    const handleClear = () => {
+      if (!terminalInstanceRef.current) {
+        return;
+      }
+      terminalInstanceRef.current.reset();
+      terminalInstanceRef.current.writeln(
+        "\x1b[32m[Cleared logs before rerun]\x1b[0m",
+      );
+    };
+
+    window.addEventListener(TERMINAL_CLEAR_EVENT, handleClear);
+    return () => {
+      window.removeEventListener(TERMINAL_CLEAR_EVENT, handleClear);
+    };
   }, []);
 
   useEffect(() => {
-    if (!terminalRef.current || !mounted || terminalInstanceRef.current) return;
+    if (!terminalRef.current || terminalInstanceRef.current) return;
 
     try {
       // Initialize terminal
@@ -108,7 +122,7 @@ const TerminalComponent = () => {
     } catch (error) {
       console.error("Error initializing terminal:", error);
     }
-  }, [mounted]);
+  }, []);
 
   return (
     <div

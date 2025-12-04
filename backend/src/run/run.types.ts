@@ -16,3 +16,10 @@ export interface RunMetadata {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface RunLogsPayload {
+  runId: string;
+  content: string;
+  filename: string;
+  updatedAt: string;
+}

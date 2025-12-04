@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "./MonacoEditor";
 import TabsBar from "./TabsBar";
 import type { FileEntity } from "@/types/editor";
 import { getFile } from "@/lib/api/files";
-import { createRun, type RunStatus } from "@/lib/api/run";
-import { Loader2, Play, Share2 } from "lucide-react";
+import {
+  createRun,
+  getRunLogs,
+  getRunStatus,
+  type RunResponse,
+  type RunStatus,
+} from "@/lib/api/run";
+import { downloadTextFile } from "@/lib/utils";
+import { Download, Loader2, Play, RotateCcw, Share2 } from "lucide-react";
 
 interface EditorPaneProps {
   workspaceId: string;
@@ -14,23 +21,45 @@ interface EditorPaneProps {
   onActiveFileChange?: (fileId: string | null) => void;
 }
 
+const POLL_INTERVAL_MS = 3000;
+const TERMINAL_CLEAR_EVENT = "nebula-terminal-clear";
+
+interface RunSnapshot {
+  runId: string;
+  status: RunStatus;
+  fileId: string;
+  fileName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const isRunActive = (status: RunStatus) => status === "queued" || status === "running";
+const isTerminalStatus = (status: RunStatus) =>
+  status === "completed" || status === "failed" || status === "cancelled";
+
 const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps) => {
   const [openTabs, setOpenTabs] = useState<FileEntity[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<FileEntity | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeRun, setActiveRun] = useState<{ runId: string; status: RunStatus } | null>(null);
+  const [runStates, setRunStates] = useState<Record<string, RunSnapshot>>({});
   const [isRunRequestPending, setIsRunRequestPending] = useState(false);
+  const [logsDownloadPending, setLogsDownloadPending] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
+  const runStatesRef = useRef<Record<string, RunSnapshot>>({});
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    runStatesRef.current = runStates;
+  }, [runStates]);
 
   const openFile = useCallback(
     async (targetFileId: string, options?: { optimisticActive?: boolean }) => {
@@ -50,7 +79,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         setActiveFile(data);
         setActiveTabId(data.id);
         onActiveFileChange?.(data.id);
-        setActiveRun(null);
         setRunError(null);
         setOpenTabs((prev) => {
           const exists = prev.some((tab) => tab.id === data.id);
@@ -81,7 +109,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setOpenTabs([]);
       setIsLoading(false);
       setErrorMessage(null);
-      setActiveRun(null);
+      setRunStates({});
       setRunError(null);
       return;
     }
@@ -144,8 +172,82 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     );
   };
 
+  const upsertRunSnapshot = (file: FileEntity, response: RunResponse) => {
+    setRunStates((prev) => ({
+      ...prev,
+      [file.id]: {
+        runId: response.runId,
+        status: response.status,
+        fileId: file.id,
+        fileName: file.name ?? file.path ?? file.id,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt,
+      },
+    }));
+  };
+
+  const dispatchTerminalClear = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.dispatchEvent(new CustomEvent(TERMINAL_CLEAR_EVENT));
+  };
+
+  const activeRun = activeFile ? runStates[activeFile.id] ?? null : null;
+
+  const isAnyRunInFlight = useMemo(
+    () => Object.values(runStates).some((run) => run && isRunActive(run.status)),
+    [runStates]
+  );
+
+  const globalInFlightRun = useMemo<RunSnapshot | null>(() => {
+    return Object.values(runStates).find((run) => run && isRunActive(run.status)) ?? null;
+  }, [runStates]);
+
+  const displayedRun = activeRun
+    ? activeRun
+    : globalInFlightRun && activeRun?.runId !== globalInFlightRun.runId
+      ? globalInFlightRun
+      : null;
+
+  const activeRunInFlight = Boolean(activeRun && isRunActive(activeRun.status));
+  const hasOtherRunInFlight = isAnyRunInFlight && !activeRunInFlight;
+
+  const runButtonDisabled =
+    !activeFile ||
+    isLoading ||
+    isRunRequestPending ||
+    activeRunInFlight ||
+    hasOtherRunInFlight;
+
+  const runButtonTooltip = !activeFile
+    ? "Open a file to run"
+    : isLoading
+      ? "File is still loading"
+      : isRunRequestPending
+        ? "Starting run"
+        : activeRunInFlight
+          ? "This file already has a run in progress"
+          : hasOtherRunInFlight
+            ? "Another file is currently running"
+            : undefined;
+
+  const canRerun = Boolean(
+    activeFile &&
+    activeRun &&
+    isTerminalStatus(activeRun.status) &&
+    !isAnyRunInFlight
+  );
+  const canDownloadLogs = Boolean(activeRun && isTerminalStatus(activeRun.status));
+
   const handleRun = async () => {
-    if (!activeFile || isRunRequestPending) {
+    const fileSnapshot = activeFile;
+    if (
+      !fileSnapshot ||
+      isRunRequestPending ||
+      activeRunInFlight ||
+      hasOtherRunInFlight
+    ) {
       return;
     }
 
@@ -154,11 +256,12 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     try {
       const response = await createRun({
         workspaceId,
-        fileId: activeFile.id,
-        language: activeFile.language,
+        fileId: fileSnapshot.id,
+        language: fileSnapshot.language,
       });
 
-      setActiveRun({ runId: response.runId, status: response.status });
+      upsertRunSnapshot(fileSnapshot, response);
+      dispatchTerminalClear();
     } catch (error) {
       console.error("Failed to start run", error);
       setRunError("Unable to start run. Please try again.");
@@ -166,6 +269,82 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setIsRunRequestPending(false);
     }
   };
+
+  const handleDownloadLogs = async () => {
+    if (!activeRun || !canDownloadLogs || logsDownloadPending) {
+      return;
+    }
+
+    setRunError(null);
+    setLogsDownloadPending(true);
+    try {
+      const payload = await getRunLogs(activeRun.runId);
+      const filename = payload.filename || `run-${activeRun.runId}.log`;
+      downloadTextFile(filename, payload.content);
+    } catch (error) {
+      console.error("Failed to download logs", error);
+      setRunError("Unable to download logs right now. Please try again.");
+    } finally {
+      setLogsDownloadPending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAnyRunInFlight) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollStatuses = async () => {
+      const entries = Object.entries(runStatesRef.current).filter(([, snapshot]) =>
+        snapshot ? isRunActive(snapshot.status) : false
+      ) as Array<[string, RunSnapshot]>;
+
+      if (!entries.length) {
+        return;
+      }
+
+      try {
+        const updates = await Promise.all(
+          entries.map(async ([fileKey, snapshot]) => {
+            const data = await getRunStatus(snapshot.runId);
+            return { fileKey, data };
+          })
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setRunStates((prev) => {
+          const next = { ...prev } as Record<string, RunSnapshot>;
+          for (const update of updates) {
+            const existing = next[update.fileKey];
+            next[update.fileKey] = {
+              fileId: update.fileKey,
+              fileName: existing?.fileName ?? update.data.fileId,
+              runId: update.data.runId,
+              status: update.data.status,
+              createdAt: update.data.createdAt,
+              updatedAt: update.data.updatedAt,
+            };
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error("Failed to refresh run status", error);
+      }
+    };
+
+    void pollStatuses();
+    const intervalId = window.setInterval(pollStatuses, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isAnyRunInFlight]);
 
   const resolvedFile: FileEntity =
     activeFile ?? {
@@ -191,22 +370,56 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           />
         </div>
         <div className="hidden items-center gap-3 px-4 sm:flex">
-          {activeRun ? (
-            <RunStatusPill status={activeRun.status} />
+          {displayedRun ? (
+            <div className="flex items-center gap-2">
+              <RunStatusPill status={displayedRun.status} />
+              {!activeRun && displayedRun.fileName ? (
+                <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-gray-300">
+                  {displayedRun.fileName}
+                </span>
+              ) : null}
+            </div>
           ) : null}
           <button
             type="button"
             onClick={() => {
               void handleRun();
             }}
-            disabled={!activeFile || isLoading || isRunRequestPending || (activeRun && (activeRun.status === "queued" || activeRun.status === "running"))}
-            title={!activeFile ? "Open a file to run" : isLoading ? "File is still loading" : undefined}
+            disabled={runButtonDisabled}
+            title={runButtonTooltip}
             className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRunRequestPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             {isRunRequestPending ? "Starting..." : "Run"}
           </button>
-          <button className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500">
+          {canRerun ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleRun();
+              }}
+              className="flex items-center gap-2 rounded bg-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-slate-600"
+            >
+              <RotateCcw size={14} /> Rerun
+            </button>
+          ) : null}
+          {canDownloadLogs ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleDownloadLogs();
+              }}
+              disabled={logsDownloadPending}
+              className="flex items-center gap-2 rounded bg-indigo-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {logsDownloadPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {logsDownloadPending ? "Preparing..." : "Download Logs"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500"
+          >
             <Share2 size={14} /> Share
           </button>
         </div>
