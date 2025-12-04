@@ -17,7 +17,7 @@ import CodeEditor from "@/components/CodeEditor";
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import dynamic from "next/dynamic";
-import { Play, Share2 } from "lucide-react";
+import { Play, Share2, Zap } from "lucide-react";
 
 const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
   ssr: false,
