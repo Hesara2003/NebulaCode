@@ -16,9 +16,11 @@ export type PresenceParticipant = {
 
 @WebSocketGateway({
   namespace: 'editor-sync',
+  path: '/editor-sync/socket.io',
   cors: {
     origin: '*',
   },
+  transports: ['websocket'],
 })
 export class EditorSyncGateway
   implements OnGatewayConnection, OnGatewayDisconnect
