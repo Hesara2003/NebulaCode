@@ -9,7 +9,6 @@ import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
-import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your branch
 
 @Module({
   imports: [
@@ -28,7 +27,6 @@ import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your
     }),
     WorkspacesModule,
     AuthModule,
-    WorkspaceModule, // <-- Inserted cleanly
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],

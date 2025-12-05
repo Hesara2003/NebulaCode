@@ -5,7 +5,7 @@ import MonacoEditor from "./MonacoEditor";
 import TabsBar from "./TabsBar";
 import type { FileEntity } from "@/types/editor";
 import { getFile } from "@/lib/api/files";
-import { Play, Share2 } from "lucide-react";
+import { Play, Save, Share2 } from "lucide-react";
 
 interface EditorPaneProps {
   workspaceId: string;
@@ -119,18 +119,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     setActiveFile((prev) =>
       prev
         ? {
-            ...prev,
-            content: value ?? prev.content ?? "",
-          }
+          ...prev,
+          content: value ?? prev.content ?? "",
+        }
         : prev
     );
     setOpenTabs((prev) =>
       prev.map((tab) =>
         tab.id === activeTabId
           ? {
-              ...tab,
-              content: value ?? tab.content ?? "",
-            }
+            ...tab,
+            content: value ?? tab.content ?? "",
+          }
           : tab
       )
     );
@@ -148,6 +148,36 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       updatedAt: new Date().toISOString(),
     };
 
+  const handleSave = async () => {
+    if (!activeFile || !activeTabId) return;
+
+    // Optimistic UI: Show saving state immediately
+    const originalContent = activeFile.content;
+    const newContent = activeFile.content; // In a real app, this might come from the editor model if not synced
+
+    try {
+      // Optimistically update local state if needed (already done via onChange)
+      // Show saving indicator (could be a toast or status bar update)
+      console.log("Saving...");
+
+      await import("@/lib/api/files").then((mod) =>
+        mod.saveFile(workspaceId, activeTabId, newContent ?? "")
+      );
+
+      console.log("Saved!");
+      // Show success indicator
+    } catch (error) {
+      console.error("Failed to save", error);
+      // Revert optimistic update if needed or show error
+      setErrorMessage("Failed to save changes. Please try again.");
+    }
+  };
+
+  const handleLoad = () => {
+    if (!activeTabId) return;
+    void openFile(activeTabId, { optimisticActive: true });
+  };
+
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
       <div className="flex h-10 items-center border-b border-[#1e1e1e]">
@@ -160,11 +190,20 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           />
         </div>
         <div className="hidden items-center gap-3 px-4 sm:flex">
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500"
+          >
+            <Save size={14} /> Save
+          </button>
+          <button
+            onClick={handleLoad}
+            className="flex items-center gap-2 rounded bg-zinc-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-600"
+          >
+            <Play size={14} className="rotate-180" /> Load
+          </button>
           <button className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-green-600">
             <Play size={14} /> Run
-          </button>
-          <button className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500">
-            <Share2 size={14} /> Share
           </button>
         </div>
       </div>

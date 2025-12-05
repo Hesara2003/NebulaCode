@@ -15,3 +15,16 @@ export const getFile = async (
 
   return data;
 };
+
+/**
+ * Saves the file content to the backend.
+ */
+export const saveFile = async (
+  workspaceId: string,
+  fileId: string,
+  content: string
+): Promise<void> => {
+  await apiClient.post(`/workspaces/${workspaceId}/files/${fileId}`, {
+    content,
+  });
+};

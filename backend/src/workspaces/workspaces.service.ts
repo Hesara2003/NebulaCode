@@ -11,6 +11,13 @@ export interface WorkspaceFile {
   updatedAt: string;
 }
 
+export interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
+}
+
 const MOCK_WORKSPACE_FILES: Record<string, WorkspaceFile[]> = {
   'demo-workspace': [
     {
@@ -75,4 +82,59 @@ export class WorkspacesService {
 
     return file;
   }
+
+  saveFile(
+    workspaceId: string,
+    fileId: string,
+    content: string,
+  ): WorkspaceFile {
+    const files = MOCK_WORKSPACE_FILES[workspaceId];
+
+    if (!files) {
+      throw new NotFoundException(`Workspace ${workspaceId} was not found.`);
+    }
+
+    const fileIndex = files.findIndex((item) => item.id === fileId);
+
+    if (fileIndex === -1) {
+      throw new NotFoundException(
+        `File ${fileId} was not found in workspace ${workspaceId}.`,
+      );
+    }
+
+    const updatedFile = {
+      ...files[fileIndex],
+      content,
+      updatedAt: new Date().toISOString(),
+    };
+
+    files[fileIndex] = updatedFile;
+
+    return updatedFile;
+  }
+  getFileTree(workspaceId: string): FileNode[] {
+    // Mock file tree structure
+    return [
+      {
+        id: '1',
+        name: 'src',
+        type: 'folder',
+        children: [
+          { id: '2', name: 'welcome.ts', type: 'file' },
+          { id: '3', name: 'server.ts', type: 'file' },
+          {
+            id: '4',
+            name: 'scripts',
+            type: 'folder',
+            children: [
+              { id: '5', name: 'runner.py', type: 'file' }
+            ]
+          }
+        ]
+      },
+      { id: '6', name: 'README.md', type: 'file' },
+      { id: '7', name: 'package.json', type: 'file' }
+    ];
+  }
 }
+

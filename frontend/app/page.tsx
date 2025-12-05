@@ -6,7 +6,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Zap, Play, Share2 } from "lucide-react";
 import { TypingAnimation } from "@/components/TypingAnimation";
 import BrandCarousel from "@/components/BrandCarousel";
 import ClientFeedback from "@/components/ui/testimonial";
@@ -17,7 +17,6 @@ import CodeEditor from "@/components/CodeEditor";
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import dynamic from "next/dynamic";
-import { Play, Share2 } from "lucide-react";
 
 const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
   ssr: false,
@@ -150,7 +149,7 @@ export default function LandingPage() {
             alt="Space Background"
             className="w-full h-full object-cover opacity-60"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/70 via-black/50 to-black" />
         </div>
 
         <div ref={heroRef} className="relative z-20 text-center px-6 max-w-5xl mx-auto">
@@ -254,7 +253,7 @@ export default function LandingPage() {
                 <CodeEditor
                   language="typescript"
                   theme="vs-dark"
-                  defaultValue={`/**
+                  value={`/**
  * NebulaCode Presence Demo
  */
 
@@ -323,7 +322,7 @@ export const collaborators = [
 
       {/* CTA Section */}
       <section ref={ctaRef} className="py-32 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-red-900/20 to-black z-0" />
+        <div className="absolute inset-0 bg-linear-to-b from-red-900/20 to-black z-0" />
         <div className="container mx-auto px-6 relative z-10 text-center">
           <h2 className="text-4xl md:text-6xl font-bold mb-8 font-heading">Ready to code in the cloud?</h2>
           <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">Join thousands of developers building the future with NebulaCode.</p>
