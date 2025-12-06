@@ -6,7 +6,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play, Share2, Zap } from "lucide-react";
 import { TypingAnimation } from "@/components/TypingAnimation";
 import BrandCarousel from "@/components/BrandCarousel";
 import ClientFeedback from "@/components/ui/testimonial";
@@ -17,7 +17,7 @@ import CodeEditor from "@/components/CodeEditor";
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import dynamic from "next/dynamic";
-import { Play, Share2 } from "lucide-react";
+
 
 const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
   ssr: false,
@@ -254,7 +254,7 @@ export default function LandingPage() {
                 <CodeEditor
                   language="typescript"
                   theme="vs-dark"
-                  defaultValue={`/**
+                  value={`/**
  * NebulaCode Presence Demo
  */
 
