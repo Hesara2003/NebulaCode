@@ -12,19 +12,19 @@ export class WorkspacesController {
   }
 
   @Get(':workspaceId/files/:fileId')
-  getFile(
+  async getFile(
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,
-  ): WorkspaceFile {
+  ): Promise<WorkspaceFile> {
     return this.workspacesService.getFile(workspaceId, fileId);
   }
 
   @Post(':workspaceId/files/:fileId')
-  saveFile(
+  async saveFile(
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,
     @Body('content') content: string,
-  ): WorkspaceFile {
+  ): Promise<WorkspaceFile> {
     return this.workspacesService.saveFile(workspaceId, fileId, content);
   }
 }

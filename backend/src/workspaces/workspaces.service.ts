@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { FilesService } from '../files/files.service';
 
 export interface WorkspaceFile {
   id: string;
@@ -65,7 +66,9 @@ const MOCK_WORKSPACE_FILES: Record<string, WorkspaceFile[]> = {
 
 @Injectable()
 export class WorkspacesService {
-  getFile(workspaceId: string, fileId: string): WorkspaceFile {
+  constructor(private readonly filesService: FilesService) { }
+
+  async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
     const files = MOCK_WORKSPACE_FILES[workspaceId];
 
     if (!files) {
@@ -80,14 +83,21 @@ export class WorkspacesService {
       );
     }
 
-    return file;
+    // Try to load content from persistence
+    try {
+      const content = await this.filesService.getFile(workspaceId, fileId);
+      return { ...file, content };
+    } catch (error) {
+      // If file not found in persistence, fallback to mock content (first load)
+      return file;
+    }
   }
 
-  saveFile(
+  async saveFile(
     workspaceId: string,
     fileId: string,
     content: string,
-  ): WorkspaceFile {
+  ): Promise<WorkspaceFile> {
     const files = MOCK_WORKSPACE_FILES[workspaceId];
 
     if (!files) {
@@ -101,6 +111,9 @@ export class WorkspacesService {
         `File ${fileId} was not found in workspace ${workspaceId}.`,
       );
     }
+
+    // Save content to persistence
+    await this.filesService.saveFile(workspaceId, fileId, content);
 
     const updatedFile = {
       ...files[fileIndex],
