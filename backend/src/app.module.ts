@@ -4,10 +4,13 @@ import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth';
 import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
+import { FilesModule } from './files/files.module';
+import { RunnerModule } from './runner/runner.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
@@ -20,13 +23,16 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
           process.env.NODE_ENV === 'production'
             ? undefined
             : {
-                target: 'pino-pretty',
-                options: { singleLine: true, colorize: true },
-              },
+              target: 'pino-pretty',
+              options: { singleLine: true, colorize: true },
+            },
       },
     }),
+    ScheduleModule.forRoot(),
     WorkspacesModule,
     AuthModule,
+    FilesModule,
+    RunnerModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],
