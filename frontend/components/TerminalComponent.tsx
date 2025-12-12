@@ -5,9 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { io } from "socket.io-client";
 
-const TERMINAL_ENDPOINT = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
-).replace(/\/$/, "");
+const TERMINAL_ENDPOINT = resolveTerminalSocketUrl();
 
 const TerminalComponent = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -61,13 +59,13 @@ const TerminalComponent = () => {
       window.addEventListener("resize", handleResize);
 
       // Connect to backend via Socket.IO
-      const socket = io(`${TERMINAL_ENDPOINT}/terminal`, {
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-        withCredentials: true,
-        transports: ["websocket"],
-      });
+      const socket = io(`${TERMINAL_ENDPOINT}/terminal`, { 
+        reconnection: true, 
+        reconnectionDelay: 1000, 
+        reconnectionAttempts: 5, 
+        withCredentials: true, 
+        transports: ["websocket"], 
+      }); 
 
       socket.on("connect", () => {
         term.writeln("\x1b[32m[Connected to server]\x1b[0m");

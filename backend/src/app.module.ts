@@ -10,6 +10,8 @@ import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your branch
+import { RedisModule } from './redis/redis.module';
+import { RunModule } from './run/run.module';
 
 @Module({
   imports: [
@@ -26,9 +28,11 @@ import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your
               },
       },
     }),
+    RedisModule,
     WorkspacesModule,
     AuthModule,
     WorkspaceModule, // <-- Inserted cleanly
+    RunModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],

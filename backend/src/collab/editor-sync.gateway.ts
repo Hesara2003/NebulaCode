@@ -34,6 +34,7 @@ type DocumentLeavePayload = {
 
 @WebSocketGateway({
   namespace: 'editor-sync',
+  path: '/editor-sync/socket.io',
   cors: {
     origin: [
       ...(process.env.COLLAB_ALLOWED_ORIGINS?.split(',')
@@ -44,6 +45,7 @@ type DocumentLeavePayload = {
     ],
     credentials: true,
   },
+  transports: ['websocket'],
 })
 export class EditorSyncGateway
   implements OnGatewayConnection, OnGatewayDisconnect
