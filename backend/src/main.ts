@@ -7,7 +7,9 @@ import { Logger as PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
 
   const logger = app.get(PinoLogger);
   app.useLogger(logger);
@@ -29,7 +31,8 @@ async function bootstrap() {
   }
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') ?? Number(process.env.PORT ?? 4000);
+  const port =
+    configService.get<number>('PORT') ?? Number(process.env.PORT ?? 4000);
 
   await app.listen(port);
   logger.log(`API listening on http://localhost:${port}`);

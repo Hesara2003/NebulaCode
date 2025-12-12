@@ -5,7 +5,7 @@ import { io } from "socket.io-client";
 import type { PresenceUser } from "./store";
 
 const DEFAULT_HTTP_ENDPOINT =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function createCollaborationSocket(user: PresenceUser): Socket {
   const url = `${DEFAULT_HTTP_ENDPOINT.replace(/\/$/, "")}/editor-sync`;
