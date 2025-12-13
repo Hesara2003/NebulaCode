@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest",
+    "test:week1": "jest tests/week1"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
