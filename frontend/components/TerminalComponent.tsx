@@ -1,13 +1,17 @@
 "use client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { io, Socket } from "socket.io-client";
+
 import { getApiBaseUrl } from "@/lib/api/httpClient";
 import { cancelRun } from "@/lib/api/runs";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+
+/* ---------------- TYPES ---------------- */
 
 type RunStatus =
   | "queued"
@@ -19,153 +23,156 @@ type RunStatus =
 type RunStreamEvent =
   | { type: "stdout"; data: string; timestamp?: string }
   | { type: "stderr"; data: string; timestamp?: string }
-  | {
-      type: "status";
-      data: RunStatus;
-      reason?: string;
-      timestamp?: string;
-    };
+  | { type: "status"; data: RunStatus; reason?: string; timestamp?: string };
 
 type TerminalComponentProps = {
   runId: string;
   token?: string;
 };
 
+/* ---------------- CONSTANTS ---------------- */
+
+const TERMINAL_CLEAR_EVENT = "nebula-terminal-clear";
+
+const resolveTerminalSocketUrl = () => {
+  const explicit = process.env.NEXT_PUBLIC_TERMINAL_SOCKET_URL;
+  const fallback = process.env.NEXT_PUBLIC_SOCKET_URL;
+  return (explicit ?? fallback ?? getApiBaseUrl()).replace(/\/$/, "");
+};
+
+/* ---------------- COMPONENT ---------------- */
+
 const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  const [status, setStatus] = useState<RunStatus>("queued");
-  const [isCancelling, setIsCancelling] = useState(false);
   const terminalInstanceRef = useRef<Terminal | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
+  const [status, setStatus] = useState<RunStatus>("queued");
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
 
+  /* ---------- Clear Terminal Listener ---------- */
   useEffect(() => {
-    setMounted(true);
+    const handleClear = () => {
+      if (!terminalInstanceRef.current) return;
+      terminalInstanceRef.current.reset();
+      terminalInstanceRef.current.writeln(
+        "\x1b[32m[Cleared logs before rerun]\x1b[0m"
+      );
+    };
+
+    window.addEventListener(TERMINAL_CLEAR_EVENT, handleClear);
+    return () =>
+      window.removeEventListener(TERMINAL_CLEAR_EVENT, handleClear);
   }, []);
 
+  /* ---------- Init Terminal + Socket ---------- */
   useEffect(() => {
-    if (!terminalRef.current || !mounted || terminalInstanceRef.current) return;
+    if (!terminalRef.current || terminalInstanceRef.current) return;
 
-    try {
-      // Initialize terminal
-      const term = new Terminal({
-        theme: {
-          background: "#1e1e1e",
-          foreground: "#ffffff",
-          cursor: "#ffffff",
-        },
-        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-        fontSize: 14,
-        cursorBlink: true,
-        rows: 20,
-      });
+    const term = new Terminal({
+      theme: {
+        background: "#1e1e1e",
+        foreground: "#ffffff",
+        cursor: "#ffffff",
+      },
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontSize: 14,
+      cursorBlink: true,
+      rows: 20,
+    });
 
-      terminalInstanceRef.current = term;
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    terminalInstanceRef.current = term;
 
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.open(terminalRef.current);
+    setTimeout(() => fitAddon.fit(), 100);
 
-      // Initial fit
-      setTimeout(() => {
-        try {
-          fitAddon.fit();
-        } catch (error) {
-          console.error("Error fitting terminal:", error);
-        }
-      }, 100);
+    const handleResize = () => {
+      try {
+        fitAddon.fit();
+      } catch {}
+    };
 
-      // Handle window resize
-      const handleResize = () => {
-        try {
-          fitAddon.fit();
-        } catch (error) {
-          console.error("Error resizing terminal:", error);
-        }
-      };
-      window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", handleResize);
 
-      // Connect to backend run stream using dedicated path (no namespace)
-      const socket = io(apiBaseUrl, {
-        transports: ["websocket"],
-        auth: { token },
-        path: "/runs",
-        query: { runId, ...(token ? { token } : {}) },
-      });
-      socketRef.current = socket;
+    /* ---------- Socket Connection ---------- */
+    const socket = io(resolveTerminalSocketUrl(), {
+      transports: ["websocket"],
+      auth: token ? { token } : undefined,
+      query: { runId },
+      reconnection: true,
+      reconnectionAttempts: 5,
+    });
 
-      socket.on("connect", () => {
-        term.writeln("\x1b[32m[Connected to run stream]\x1b[0m");
-      });
+    socketRef.current = socket;
 
-      socket.on("run-event", (msg: RunStreamEvent) => {
-        if (msg.type === "stdout") {
-          term.write(msg.data);
-        } else if (msg.type === "stderr") {
-          term.write(`\x1b[31m${msg.data}\x1b[0m`);
-        } else if (msg.type === "status") {
-          setStatus(msg.data);
-          const reasonText = msg.reason ? ` (${msg.reason})` : "";
-          term.writeln(
-            `\r\n\x1b[36m[status]\x1b[0m ${msg.data}${reasonText}\r\n`
-          );
-        }
-      });
+    socket.on("connect", () => {
+      term.writeln("\x1b[32m[Connected to run stream]\x1b[0m");
+    });
 
-      socket.on("disconnect", () => {
-        term.writeln("\x1b[31m[Disconnected from server]\x1b[0m");
-      });
-
-      socket.on("connect_error", (error) => {
-        console.error("Socket connection error:", error);
+    socket.on("run-event", (msg: RunStreamEvent) => {
+      if (msg.type === "stdout") term.write(msg.data);
+      if (msg.type === "stderr")
+        term.write(`\x1b[31m${msg.data}\x1b[0m`);
+      if (msg.type === "status") {
+        setStatus(msg.data);
         term.writeln(
-          "\x1b[33m[Connection error - check token or server]\x1b[0m"
+          `\n\x1b[36m[status]\x1b[0m ${msg.data}${
+            msg.reason ? ` (${msg.reason})` : ""
+          }\n`
         );
-      });
+      }
+    });
 
-      // Optional: display initial prompt
+    socket.on("disconnect", () => {
+      term.writeln("\x1b[31m[Disconnected]\x1b[0m");
+    });
+
+    socket.on("connect_error", () => {
       term.writeln(
-        `\x1b[1;32m➜\x1b[0m \x1b[1;36mrun:${runId}\x1b[0m streaming logs...`
+        "\x1b[33m[Connection error — check token or server]\x1b[0m"
       );
+    });
 
-      return () => {
-        window.removeEventListener("resize", handleResize);
-        if (terminalInstanceRef.current) {
-          terminalInstanceRef.current.dispose();
-          terminalInstanceRef.current = null;
-        }
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        }
-      };
-    } catch (error) {
-      console.error("Error initializing terminal:", error);
-    }
-  }, [apiBaseUrl, mounted, runId, token]);
+    term.writeln(
+      `\x1b[1;32m➜\x1b[0m \x1b[1;36mrun:${runId}\x1b[0m streaming logs...\n`
+    );
 
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      socket.disconnect();
+      term.dispose();
+      terminalInstanceRef.current = null;
+    };
+  }, [apiBaseUrl, runId, token]);
+
+  /* ---------- Cancel Run ---------- */
   const handleCancel = async () => {
-    setIsCancelling(true);
     try {
+      setIsCancelling(true);
       await cancelRun(runId);
       setStatus("cancelled");
-    } catch (error) {
-      console.error("Failed to cancel run", error);
+    } catch (err) {
+      console.error("Failed to cancel run", err);
     } finally {
       setIsCancelling(false);
     }
   };
 
-  const disableCancel = isCancelling || ["succeeded", "failed", "cancelled"].includes(status);
+  const disableCancel =
+    isCancelling ||
+    ["succeeded", "failed", "cancelled"].includes(status);
 
+  /* ---------- UI ---------- */
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#333]">
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-gray-300">Run ID:</span>
-          <code className="text-gray-100">{runId}</code>
+          <span className="text-gray-400">Run:</span>
+          <code className="text-white">{runId}</code>
           <span
             className={cn(
               "text-xs rounded-full px-2 py-1 border",
@@ -179,18 +186,20 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
             {status}
           </span>
         </div>
+
         <Button
-          variant="secondary"
           size="sm"
+          variant="secondary"
           onClick={handleCancel}
           disabled={disableCancel}
         >
-          {isCancelling ? "Cancelling..." : "Cancel run"}
+          {isCancelling ? "Cancelling..." : "Cancel"}
         </Button>
       </div>
+
       <div
-        className="h-full w-full bg-[#1e1e1e] pl-2 pt-2 overflow-hidden"
         ref={terminalRef}
+        className="flex-1 bg-[#1e1e1e] overflow-hidden pl-2 pt-2"
       />
     </div>
   );

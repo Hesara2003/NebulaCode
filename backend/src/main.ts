@@ -5,12 +5,16 @@ import { AppModule } from './app.module';
 import { Logger as NestLogger } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
 
   const logger = app.get(PinoLogger);
   app.useLogger(logger);
+
+  // Ensure all WebSocket gateways share the Socket.IO adapter instead of the default ws adapter
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   app.enableCors({ origin: true, credentials: true });
 

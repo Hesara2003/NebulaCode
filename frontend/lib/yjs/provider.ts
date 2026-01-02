@@ -3,15 +3,20 @@
 import type { Socket } from "socket.io-client";
 import { io } from "socket.io-client";
 import type { PresenceUser } from "./store";
+import { getApiBaseUrl } from "../api/httpClient";
 
-const DEFAULT_HTTP_ENDPOINT =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+const resolveSocketBaseUrl = () => {
+  const explicitSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  const baseUrl = explicitSocketUrl ?? getApiBaseUrl();
+  return baseUrl.replace(/\/$/, "");
+};
 
 export function createCollaborationSocket(user: PresenceUser): Socket {
-  const url = `${DEFAULT_HTTP_ENDPOINT.replace(/\/$/, "")}/editor-sync`;
+  const url = `${resolveSocketBaseUrl()}/editor-sync`;
   return io(url, {
     transports: ["websocket"],
     autoConnect: false,
+    path: "/editor-sync/socket.io",
     auth: {
       userId: user.id,
       name: user.name,
