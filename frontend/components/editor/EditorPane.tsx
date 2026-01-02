@@ -15,6 +15,13 @@ import {
 import { downloadTextFile } from "@/lib/utils";
 import { connectRunWebSocket } from "@/lib/runWebSocket";
 import { Download, Loader2, Play, RotateCcw, Share2 } from "lucide-react";
+import { useCollaborationStore } from "@/lib/yjs";
+import { getAwareness, getDocumentText } from "@/lib/yjs/document";
+import type { OnMount } from "@monaco-editor/react";
+import type { editor as MonacoEditorNS } from "monaco-editor";
+
+type MonacoBindingClass = typeof import("y-monaco")["MonacoBinding"];
+type MonacoBindingInstance = InstanceType<MonacoBindingClass>;
 
 interface EditorPaneProps {
   workspaceId: string;
@@ -44,15 +51,29 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [activeFile, setActiveFile] = useState<FileEntity | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sharedContent, setSharedContent] = useState<string>("");
+  const [showConflictBanner, setShowConflictBanner] = useState<boolean>(false);
   const [runStates, setRunStates] = useState<Record<string, RunSnapshot>>({});
   const [isRunRequestPending, setIsRunRequestPending] = useState(false);
   const [logsDownloadPending, setLogsDownloadPending] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [pollingError, setPollingError] = useState<string | null>(null);
   const [isManualStatusRefreshPending, setIsManualStatusRefreshPending] = useState(false);
+
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
+  const editorInstanceRef = useRef<MonacoEditorNS.IStandaloneCodeEditor | null>(null);
+  const bindingRef = useRef<MonacoBindingInstance | null>(null);
+  const bindingClassRef = useRef<MonacoBindingClass | null>(null);
+  const currentDocumentIdRef = useRef<string | null>(null);
   const runStatesRef = useRef<Record<string, RunSnapshot>>({});
+
+  const joinDocument = useCollaborationStore((state) => state.joinDocument);
+  const leaveDocument = useCollaborationStore((state) => state.leaveDocument);
+  const initializeDocument = useCollaborationStore((state) => state.initializeDocument);
+  const lastRemoteUpdate = useCollaborationStore((state) => state.lastRemoteUpdate);
+  const clearRemoteUpdate = useCollaborationStore((state) => state.clearRemoteUpdate);
+  const currentUser = useCollaborationStore((state) => state.currentUser);
 
   useEffect(() => {
     return () => {
@@ -110,6 +131,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setActiveTabId(null);
       setActiveFile(null);
       setOpenTabs([]);
+      setSharedContent("");
       setIsLoading(false);
       setErrorMessage(null);
       setRunStates({});
@@ -154,26 +176,148 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     void openFile(pendingFileIdRef.current, { optimisticActive: true });
   };
 
-  const handleEditorChange = (value: string | undefined) => {
-    setActiveFile((prev) =>
-      prev
-        ? {
-            ...prev,
-            content: value ?? prev.content ?? "",
-          }
-        : prev
-    );
-    setOpenTabs((prev) =>
-      prev.map((tab) =>
-        tab.id === activeTabId
-          ? {
-              ...tab,
-              content: value ?? tab.content ?? "",
-            }
-          : tab
-      )
-    );
+  const handleEditorMount: OnMount = (editor) => {
+    editorInstanceRef.current = editor;
   };
+
+  useEffect(() => {
+    const documentId = activeFile?.id;
+    const initialContent = activeFile?.content ?? "";
+
+    let disposeTextObserver: (() => void) | undefined;
+
+    const setupCollaboration = async () => {
+      if (!documentId) {
+        return;
+      }
+
+      currentDocumentIdRef.current = documentId;
+
+      await joinDocument(documentId);
+      initializeDocument(documentId, initialContent);
+
+      const text = getDocumentText(documentId);
+
+      const synchronizeState = () => {
+        const nextContent = text.toString();
+        setSharedContent(nextContent);
+        setActiveFile((prev) =>
+          prev && prev.id === documentId ? { ...prev, content: nextContent } : prev
+        );
+        setOpenTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === documentId
+              ? {
+                  ...tab,
+                  content: nextContent,
+                }
+              : tab
+          )
+        );
+      };
+
+      synchronizeState();
+
+      const observer = () => {
+        synchronizeState();
+      };
+
+      text.observe(observer);
+      disposeTextObserver = () => {
+        text.unobserve(observer);
+      };
+    };
+
+    setupCollaboration().catch((error) => {
+      console.error("[Collab] failed to setup document", error);
+    });
+
+    return () => {
+      disposeTextObserver?.();
+      if (documentId) {
+        leaveDocument(documentId);
+      }
+      currentDocumentIdRef.current = null;
+    };
+  }, [activeFile?.id, activeFile?.content, initializeDocument, joinDocument, leaveDocument]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const attachBinding = async () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const editorInstance = editorInstanceRef.current;
+      const documentId = currentDocumentIdRef.current;
+      if (!editorInstance || !documentId) {
+        return;
+      }
+
+      const model = editorInstance.getModel();
+      if (!model) {
+        return;
+      }
+
+      const awareness = getAwareness(documentId);
+      awareness.setLocalState({
+        userId: currentUser?.id ?? "guest",
+        name: currentUser?.name ?? "Guest",
+        color: currentUser?.color ?? "#6366F1",
+      });
+
+      if (!bindingClassRef.current) {
+        const module = await import("y-monaco");
+        if (disposed) {
+          return;
+        }
+        bindingClassRef.current = module.MonacoBinding;
+      }
+
+      const Binding = bindingClassRef.current;
+      if (!Binding) {
+        return;
+      }
+
+      bindingRef.current?.destroy();
+      bindingRef.current = new Binding(
+        getDocumentText(documentId),
+        model,
+        new Set([editorInstance]),
+        awareness
+      );
+
+      if (disposed) {
+        bindingRef.current?.destroy();
+        bindingRef.current = null;
+      }
+    };
+
+    void attachBinding();
+
+    return () => {
+      disposed = true;
+      bindingRef.current?.destroy();
+      bindingRef.current = null;
+    };
+  }, [activeFile?.id, currentUser?.color, currentUser?.id, currentUser?.name]);
+
+  useEffect(() => {
+    if (!lastRemoteUpdate || lastRemoteUpdate.documentId !== currentDocumentIdRef.current) {
+      return;
+    }
+
+    setShowConflictBanner(true);
+    const timer = window.setTimeout(() => {
+      setShowConflictBanner(false);
+      clearRemoteUpdate();
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [lastRemoteUpdate, clearRemoteUpdate]);
 
   const upsertRunSnapshot = (file: FileEntity, response: RunResponse) => {
     setRunStates((prev) => ({
@@ -406,16 +550,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   }, [activeRun]);
 
   const resolvedFile: FileEntity =
-    activeFile ?? {
-      id: "placeholder-file",
-      name: "Loading.ts",
-      path: "/Loading.ts",
-      language: "typescript",
-      content:
-        "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    activeFile
+      ? { ...activeFile, content: sharedContent }
+      : {
+          id: "placeholder-file",
+          name: "Loading.ts",
+          path: "/Loading.ts",
+          language: "typescript",
+          content:
+            "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
@@ -525,12 +671,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             </button>
           </div>
         ) : null}
+        {showConflictBanner ? (
+          <div className="pointer-events-none absolute top-4 right-4 z-20 rounded-md border border-amber-400/40 bg-amber-600/20 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-200 shadow-lg">
+            Collaborator edits applied
+          </div>
+        ) : null}
         <MonacoEditor
+          key={resolvedFile.id}
           fileName={resolvedFile.name}
           language={resolvedFile.language}
           value={resolvedFile.content ?? ""}
           readOnly={isLoading}
-          onChange={handleEditorChange}
+          onMount={handleEditorMount}
         />
       </div>
     </div>

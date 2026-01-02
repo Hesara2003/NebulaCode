@@ -6,8 +6,9 @@ import type { PresenceUser } from "./store";
 import { getApiBaseUrl } from "../api/httpClient";
 
 const resolveSocketBaseUrl = () => {
-  const explicitSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-  const baseUrl = explicitSocketUrl ?? getApiBaseUrl();
+  const explicitCollabUrl = process.env.NEXT_PUBLIC_COLLAB_SOCKET_URL;
+  const fallbackSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  const baseUrl = explicitCollabUrl ?? fallbackSocketUrl ?? getApiBaseUrl();
   return baseUrl.replace(/\/$/, "");
 };
 
@@ -16,7 +17,7 @@ export function createCollaborationSocket(user: PresenceUser): Socket {
   return io(url, {
     transports: ["websocket"],
     autoConnect: false,
-    path: "/editor-sync/socket.io",
+    withCredentials: true,
     auth: {
       userId: user.id,
       name: user.name,

@@ -21,9 +21,9 @@ type RunStatus =
   | "cancelled";
 
 type RunStreamEvent =
-  | { type: "stdout"; data: string; timestamp?: string }
-  | { type: "stderr"; data: string; timestamp?: string }
-  | { type: "status"; data: RunStatus; reason?: string; timestamp?: string };
+  | { type: "stdout"; data: string }
+  | { type: "stderr"; data: string }
+  | { type: "status"; data: RunStatus; reason?: string };
 
 type TerminalComponentProps = {
   runId: string;
@@ -52,19 +52,18 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
 
-  /* ---------- Clear Terminal Listener ---------- */
+  /* ---------- Clear Terminal ---------- */
   useEffect(() => {
-    const handleClear = () => {
-      if (!terminalInstanceRef.current) return;
-      terminalInstanceRef.current.reset();
-      terminalInstanceRef.current.writeln(
-        "\x1b[32m[Cleared logs before rerun]\x1b[0m"
+    const clearHandler = () => {
+      terminalInstanceRef.current?.reset();
+      terminalInstanceRef.current?.writeln(
+        "\x1b[32m[Logs cleared]\x1b[0m"
       );
     };
 
-    window.addEventListener(TERMINAL_CLEAR_EVENT, handleClear);
+    window.addEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
     return () =>
-      window.removeEventListener(TERMINAL_CLEAR_EVENT, handleClear);
+      window.removeEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
   }, []);
 
   /* ---------- Init Terminal + Socket ---------- */
@@ -80,7 +79,6 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,
       cursorBlink: true,
-      rows: 20,
     });
 
     const fitAddon = new FitAddon();
@@ -90,19 +88,18 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
     setTimeout(() => fitAddon.fit(), 100);
 
-    const handleResize = () => {
+    const resizeHandler = () => {
       try {
         fitAddon.fit();
       } catch {}
     };
 
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", resizeHandler);
 
-    /* ---------- Socket Connection ---------- */
     const socket = io(resolveTerminalSocketUrl(), {
       transports: ["websocket"],
-      auth: token ? { token } : undefined,
       query: { runId },
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionAttempts: 5,
     });
@@ -110,7 +107,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      term.writeln("\x1b[32m[Connected to run stream]\x1b[0m");
+      term.writeln("\x1b[32m[Connected to run]\x1b[0m");
     });
 
     socket.on("run-event", (msg: RunStreamEvent) => {
@@ -133,16 +130,16 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
     socket.on("connect_error", () => {
       term.writeln(
-        "\x1b[33m[Connection error — check token or server]\x1b[0m"
+        "\x1b[33m[Connection error – retrying]\x1b[0m"
       );
     });
 
     term.writeln(
-      `\x1b[1;32m➜\x1b[0m \x1b[1;36mrun:${runId}\x1b[0m streaming logs...\n`
+      `\x1b[1;32m➜\x1b[0m \x1b[1;36mrun:${runId}\x1b[0m started...\n`
     );
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", resizeHandler);
       socket.disconnect();
       term.dispose();
       terminalInstanceRef.current = null;
@@ -156,7 +153,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       await cancelRun(runId);
       setStatus("cancelled");
     } catch (err) {
-      console.error("Failed to cancel run", err);
+      console.error("Cancel failed", err);
     } finally {
       setIsCancelling(false);
     }
@@ -175,7 +172,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
           <code className="text-white">{runId}</code>
           <span
             className={cn(
-              "text-xs rounded-full px-2 py-1 border",
+              "px-2 py-1 text-xs rounded-full border",
               status === "running" && "border-emerald-500 text-emerald-400",
               status === "queued" && "border-amber-500 text-amber-400",
               status === "succeeded" && "border-blue-500 text-blue-400",

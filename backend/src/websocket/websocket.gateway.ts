@@ -10,12 +10,22 @@ import {
 import { Socket } from 'socket.io';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
-  path: '/socket.io',
+  namespace: 'terminal',
+  cors: {
+    origin: [
+      ...(process.env.COLLAB_ALLOWED_ORIGINS?.split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0) ?? []),
+      /localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
+    ],
+    credentials: true,
+  },
   transports: ['websocket', 'polling'],
 })
 export class WebsocketGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   afterInit() {
     console.log('WebSocket Gateway Initialized');
   }
@@ -28,7 +38,7 @@ export class WebsocketGateway
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  // Echo handler 
+  // Echo handler
   @SubscribeMessage('message')
   handleMessage(
     @MessageBody() text: string,
@@ -44,12 +54,11 @@ export class WebsocketGateway
     @MessageBody() payload: any,
     @ConnectedSocket() client: Socket,
   ) {
-    console.log("Execute request received:", payload);
+    console.log('Execute request received:', payload);
 
-    return client.emit("execute-response", {
-      status: "OK",
-      message: "Execute placeholder - not implemented yet",
+    return client.emit('execute-response', {
+      status: 'OK',
+      message: 'Execute placeholder - not implemented yet',
     });
   }
-
 }
