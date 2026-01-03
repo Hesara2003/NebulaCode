@@ -1,6 +1,6 @@
 "use client";
 
-import Editor, { OnChange } from "@monaco-editor/react";
+import Editor, { OnChange, OnMount } from "@monaco-editor/react";
 
 interface MonacoEditorProps {
   fileName?: string;
@@ -8,6 +8,7 @@ interface MonacoEditorProps {
   value: string;
   theme?: "vs-dark" | "light";
   onChange?: OnChange;
+  onMount?: OnMount;
   readOnly?: boolean;
 }
 
@@ -17,6 +18,7 @@ const MonacoEditor = ({
   value,
   theme = "vs-dark",
   onChange,
+  onMount,
   readOnly = false,
 }: MonacoEditorProps) => {
   return (
@@ -32,6 +34,7 @@ const MonacoEditor = ({
         value={value}
         theme={theme}
         onChange={onChange}
+        onMount={onMount}
         options={{
           minimap: { enabled: false },
           fontSize: 14,

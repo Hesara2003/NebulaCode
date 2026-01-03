@@ -17,6 +17,8 @@ const TerminalComponent = dynamic(() => import("@/components/TerminalComponent")
 
 export default function Home() {
   const [activeFileId, setActiveFileId] = useState<string | null>("welcome-file");
+  const runId = "demo-run";
+  const wsToken = process.env.NEXT_PUBLIC_WS_TOKEN ?? "devtoken";
 
   const handleOpenFile = (fileId: string) => {
     setActiveFileId(fileId);
@@ -53,7 +55,7 @@ export default function Home() {
             <span className="hover:text-white cursor-pointer h-full flex items-center">Problems</span>
           </div>
           <div className="grow overflow-hidden">
-            <TerminalComponent />
+            <TerminalComponent runId={runId} token={wsToken} />
           </div>
         </div>
 

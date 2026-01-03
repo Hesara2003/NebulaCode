@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -12,10 +13,12 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { FilesModule } from './files/files.module';
 import { RunnerModule } from './runner/runner.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -29,6 +32,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
       },
     }),
     ScheduleModule.forRoot(),
+    RedisModule,
     WorkspacesModule,
     AuthModule,
     FilesModule,

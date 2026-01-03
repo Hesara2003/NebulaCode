@@ -7,5 +7,6 @@ import { FilesModule } from '../files/files.module';
   imports: [FilesModule],
   controllers: [WorkspacesController],
   providers: [WorkspacesService],
+  exports: [WorkspacesService],
 })
 export class WorkspacesModule { }
