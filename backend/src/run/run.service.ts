@@ -73,6 +73,12 @@ export class RunService {
     const metadata = await this.getRunMetadata(runId);
     metadata.status = status;
     metadata.updatedAt = new Date().toISOString();
+
+    // Set startedAt when transitioning to Running
+    if (status === RunStatus.Running && !metadata.startedAt) {
+      metadata.startedAt = metadata.updatedAt;
+    }
+
     await this.redisService.setJson(this.buildKey(runId), metadata);
     return metadata;
   }
@@ -82,6 +88,10 @@ export class RunService {
     if (this.isTerminalStatus(metadata.status)) {
       throw new ConflictException(`Run ${runId} is already in terminal state: ${metadata.status}`);
     }
+
+    // Signal runner to stop the container
+    await this.signalRunnerToStop(runId);
+
     return this.updateRunStatus(runId, RunStatus.Cancelled);
   }
 

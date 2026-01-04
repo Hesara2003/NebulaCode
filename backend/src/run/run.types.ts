@@ -16,6 +16,7 @@ export interface RunMetadata {
   status: RunStatus;
   createdAt: string;
   updatedAt: string;
+  startedAt?: string; // Set when status transitions to Running
 }
 
 export interface RunLogsPayload {
