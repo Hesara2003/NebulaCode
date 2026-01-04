@@ -6,6 +6,8 @@ import { Logger as NestLogger } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 
+const bootstrapLogger = new NestLogger('Bootstrap');
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
 
@@ -36,7 +38,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  const bootstrapLogger = new NestLogger('Bootstrap');
   bootstrapLogger.error('Failed to bootstrap Nest application', error);
   process.exit(1);
 });

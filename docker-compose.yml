@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   frontend:
@@ -28,6 +28,9 @@ services:
     depends_on:
       - postgres
       - redis
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     networks:
       - nebulacode-network
 
@@ -43,6 +46,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - nebulacode-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebula -d nebulacode"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine

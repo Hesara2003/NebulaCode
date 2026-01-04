@@ -11,6 +11,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { WorkspaceModule } from './workspace/workspace.module'; // <-- From your branch
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
