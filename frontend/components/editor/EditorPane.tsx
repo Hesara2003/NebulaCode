@@ -44,7 +44,7 @@ interface RunSnapshot {
 
 const isRunActive = (status: RunStatus) => status === "queued" || status === "running";
 const isTerminalStatus = (status: RunStatus) =>
-  status === "completed" || status === "failed" || status === "cancelled";
+  status === "completed" || status === "failed" || status === "cancelled" || status === "timed_out";
 
 const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps) => {
   const [openTabs, setOpenTabs] = useState<FileEntity[]>([]);
@@ -747,6 +747,7 @@ const statusStyles: Record<RunStatus, { label: string; dot: string; text: string
   completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10" },
   failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10" },
   cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10" },
+  timed_out: { label: "Timed Out", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10" },
   unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
 };
 

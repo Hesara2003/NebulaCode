@@ -1,6 +1,6 @@
 import { apiClient } from "./httpClient";
 
-export type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "unknown";
+export type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "timed_out" | "unknown";
 
 export interface CreateRunPayload {
   workspaceId: string;
