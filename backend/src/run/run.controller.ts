@@ -4,7 +4,7 @@ import { CreateRunDto } from './dto/create-run.dto';
 
 @Controller('run')
 export class RunController {
-  constructor(private readonly runService: RunService) {}
+  constructor(private readonly runService: RunService) { }
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
@@ -28,5 +28,17 @@ export class RunController {
   @Get(':runId/logs')
   async getRunLogs(@Param('runId') runId: string) {
     return this.runService.getRunLogs(runId);
+  }
+
+  @Post(':runId/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelRun(@Param('runId') runId: string) {
+    return this.runService.cancelRun(runId);
+  }
+
+  @Post(':runId/timeout')
+  @HttpCode(HttpStatus.OK)
+  async timeoutRun(@Param('runId') runId: string) {
+    return this.runService.timeoutRun(runId);
   }
 }

@@ -4,6 +4,7 @@ export enum RunStatus {
   Completed = 'completed',
   Failed = 'failed',
   Cancelled = 'cancelled',
+  TimedOut = 'timed_out',
   Unknown = 'unknown',
 }
 

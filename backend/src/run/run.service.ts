@@ -77,6 +77,22 @@ export class RunService {
     return metadata;
   }
 
+  async cancelRun(runId: string): Promise<RunMetadata> {
+    const metadata = await this.getRunMetadata(runId);
+    if (this.isTerminalStatus(metadata.status)) {
+      throw new ConflictException(`Run ${runId} is already in terminal state: ${metadata.status}`);
+    }
+    return this.updateRunStatus(runId, RunStatus.Cancelled);
+  }
+
+  async timeoutRun(runId: string): Promise<RunMetadata> {
+    const metadata = await this.getRunMetadata(runId);
+    if (this.isTerminalStatus(metadata.status)) {
+      throw new ConflictException(`Run ${runId} is already in terminal state: ${metadata.status}`);
+    }
+    return this.updateRunStatus(runId, RunStatus.TimedOut);
+  }
+
   async appendRunLogs(runId: string, lines: string | string[]): Promise<void> {
     const logKey = this.buildLogKey(runId);
     const payload = await this.redisService.getJson<RunLogsPayload>(logKey);
@@ -142,7 +158,8 @@ export class RunService {
     return (
       status === RunStatus.Completed ||
       status === RunStatus.Failed ||
-      status === RunStatus.Cancelled
+      status === RunStatus.Cancelled ||
+      status === RunStatus.TimedOut
     );
   }
 
