@@ -14,7 +14,8 @@ import {
 } from "@/lib/api/run";
 import { downloadTextFile } from "@/lib/utils";
 import { connectRunWebSocket } from "@/lib/runWebSocket";
-import { Download, Loader2, Play, RotateCcw, Share2 } from "lucide-react";
+import { Download, Loader2, Play, RotateCcw, Share2, Save, Check } from "lucide-react";
+import { saveFile } from "@/lib/api/files";
 import { useCollaborationStore } from "@/lib/yjs";
 import { getAwareness, getDocumentText } from "@/lib/yjs/document";
 import type { OnMount } from "@monaco-editor/react";
@@ -59,6 +60,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [runError, setRunError] = useState<string | null>(null);
   const [pollingError, setPollingError] = useState<string | null>(null);
   const [isManualStatusRefreshPending, setIsManualStatusRefreshPending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
@@ -208,9 +211,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           prev.map((tab) =>
             tab.id === documentId
               ? {
-                  ...tab,
-                  content: nextContent,
-                }
+                ...tab,
+                content: nextContent,
+              }
               : tab
           )
         );
@@ -488,6 +491,35 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     }
   };
 
+  const handleSave = useCallback(async () => {
+    if (!activeFile || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      // Use sharedContent as it represents the latest state in the editor including Yjs updates
+      const contentToSave = sharedContent;
+      await saveFile(workspaceId, activeFile.id, contentToSave);
+      setLastSavedAt(new Date());
+    } catch (error) {
+      console.error("Failed to save file", error);
+      setErrorMessage("Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeFile, isSaving, sharedContent, workspaceId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        void handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave]);
+
   useEffect(() => {
     if (!isAnyRunInFlight) {
       setPollingError(null);
@@ -553,15 +585,15 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     activeFile
       ? { ...activeFile, content: sharedContent }
       : {
-          id: "placeholder-file",
-          name: "Loading.ts",
-          path: "/Loading.ts",
-          language: "typescript",
-          content:
-            "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        id: "placeholder-file",
+        name: "Loading.ts",
+        path: "/Loading.ts",
+        language: "typescript",
+        content:
+          "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
@@ -585,6 +617,26 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
               ) : null}
             </div>
           ) : null}
+          <div className="flex items-center gap-2 mr-2">
+            {isSaving ? (
+              <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-400">
+                <Loader2 size={10} className="animate-spin" /> Saving...
+              </span>
+            ) : lastSavedAt ? (
+              <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-500 transition-opacity duration-1000">
+                <Check size={10} /> Saved
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={isSaving || !activeFile}
+            className="flex items-center gap-2 rounded bg-zinc-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-600 disabled:opacity-50"
+            title="Save (Ctrl+S)"
+          >
+            <Save size={14} />
+          </button>
           <button
             type="button"
             onClick={() => {

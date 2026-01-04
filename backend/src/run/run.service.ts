@@ -32,10 +32,10 @@ export class RunService {
     private readonly redisService: RedisService,
     private readonly workspacesService: WorkspacesService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async createRun(dto: CreateRunDto): Promise<RunMetadata> {
-    const file = this.workspacesService.getFile(dto.workspaceId, dto.fileId);
+    const file = await this.workspacesService.getFile(dto.workspaceId, dto.fileId);
     const runId = randomUUID();
     const now = new Date().toISOString();
 

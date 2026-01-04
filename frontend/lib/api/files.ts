@@ -9,9 +9,26 @@ export const getFile = async (
   workspaceId: string,
   fileId: string
 ): Promise<FileEntity> => {
+  // Use encodeURIComponent to handle paths with slashes safely if the backend expects it in the URL path segment
+  const encodedFileId = encodeURIComponent(fileId);
   const { data } = await apiClient.get<FileEntity>(
-    `/workspaces/${workspaceId}/files/${fileId}`
+    `/workspaces/${workspaceId}/files/${encodedFileId}`
   );
 
   return data;
+};
+
+/**
+ * Persists file content to the backend.
+ */
+export const saveFile = async (
+  workspaceId: string,
+  fileId: string,
+  content: string
+): Promise<void> => {
+  const encodedFileId = encodeURIComponent(fileId);
+  await apiClient.post(
+    `/workspaces/${workspaceId}/files/${encodedFileId}`,
+    { content }
+  );
 };
