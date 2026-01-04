@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { Cloud, Command, Cpu, Database, Globe, Server, Shield, Wifi } from 'lucide-react';
 

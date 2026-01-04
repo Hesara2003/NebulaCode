@@ -1,4 +1,11 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@radix-ui/react-tabs";
+"use client";
+
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+
+const Tabs = TabsPrimitive.Root;
+const TabsList = TabsPrimitive.List;
+const TabsTrigger = TabsPrimitive.Trigger;
+const TabsContent = TabsPrimitive.Content;
 import { Layout, Pointer, Zap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";

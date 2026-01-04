@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 'use client'
 import { Activity, Map as MapIcon, MessageCircle } from 'lucide-react'
 import DottedMap from 'dotted-map'
@@ -9,10 +10,10 @@ export function FeaturesGrid() {
         <section className="py-32 bg-black relative z-20">
             <div className="mb-12 text-center max-w-3xl mx-auto px-6 relative z-10">
                 <h2 className="text-3xl md:text-5xl font-bold mb-6 font-heading">
-                    Everything you need to <span className="text-red-500">ship faster</span>
+                    Infrastructure that <span className="text-red-500">scales with you</span>
                 </h2>
                 <p className="text-xl text-gray-400">
-                    A complete toolkit designed for modern development teams. From code to deployment, we've got you covered.
+                    Built on a global edge network to ensure low latency and high availability for developers everywhere.
                 </p>
             </div>
             <div className="mx-auto grid max-w-5xl border border-white/10 md:grid-cols-2 bg-black/20 rounded-3xl overflow-hidden px-0">
@@ -20,19 +21,19 @@ export function FeaturesGrid() {
                     <div className="p-6 sm:p-12">
                         <span className="text-muted-foreground flex items-center gap-2 text-gray-400">
                             <MapIcon className="size-4 text-red-500" />
-                            Real time location tracking
+                            Global Edge Network
                         </span>
 
-                        <p className="mt-8 text-2xl font-semibold text-white">Advanced tracking system, Instantly locate all your assets.</p>
+                        <p className="mt-8 text-2xl font-semibold text-white">Low-latency connections from 35+ regions worldwide.</p>
                     </div>
 
                     <div aria-hidden className="relative">
                         <div className="absolute inset-0 z-10 m-auto size-fit">
                             <div className="rounded-[--radius] bg-black/80 backdrop-blur-md border border-white/10 relative flex size-fit w-fit items-center gap-2 px-3 py-1 text-xs font-medium shadow-md shadow-black/5 text-white">
-                                <span className="text-lg">🇨🇩</span> Last connection from DR Congo
+                                <span className="text-lg text-green-500">●</span> Connected to fra1 (Frankfurt)
                             </div>
                             <div className="rounded-[--radius] bg-black/80 backdrop-blur-md border border-white/10 relative flex size-fit w-fit items-center gap-2 px-3 py-1 text-xs font-medium shadow-md shadow-black/5 text-white">
-                                <span className="text-lg">🇨🇩</span> Last connection from DR Congo
+                                <span className="text-lg text-green-500">●</span> Connected to iad1 (N. Virginia)
                             </div>
                             <div className="rounded-[--radius] bg-black/50 absolute inset-2 -bottom-2 mx-auto border border-white/10 px-3 py-4 text-xs font-medium shadow-md shadow-black/5"></div>
                         </div>
@@ -47,40 +48,40 @@ export function FeaturesGrid() {
                     <div className="relative z-10">
                         <span className="text-muted-foreground flex items-center gap-2 text-gray-400">
                             <MessageCircle className="size-4 text-red-500" />
-                            Email and web support
+                            24/7 Expert Support
                         </span>
 
-                        <p className="my-8 text-2xl font-semibold text-white">Reach out via email or web for any assistance you need.</p>
+                        <p className="my-8 text-2xl font-semibold text-white">Direct access to cloud engineers for mission-critical issues.</p>
                     </div>
                     <div aria-hidden className="flex flex-col gap-8">
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="flex justify-center items-center size-5 rounded-full border border-white/10">
-                                    <span className="size-3 rounded-full bg-red-500"/>
+                                    <span className="size-3 rounded-full bg-red-500" />
                                 </span>
                                 <span className="text-muted-foreground text-xs text-gray-500">Sat 22 Feb</span>
                             </div>
-                            <div className="rounded-lg bg-white/10 mt-1.5 w-3/5 border border-white/5 p-3 text-xs text-gray-300">Hey, I'm having trouble with my account.</div>
+                            <div className="rounded-lg bg-white/10 mt-1.5 w-3/5 border border-white/5 p-3 text-xs text-gray-300">Build failed with error 500 on deployment.</div>
                         </div>
 
                         <div>
-                            <div className="rounded-lg mb-1 ml-auto w-3/5 bg-red-600 p-3 text-xs text-white">We've checked your logs and fixed the issue. Please try again now.</div>
-                            <span className="text-muted-foreground block text-right text-xs text-gray-500">Now</span>
+                            <div className="rounded-lg mb-1 ml-auto w-3/5 bg-red-600 p-3 text-xs text-white">We've identified a config issue in your Dockerfile. Fix applied.</div>
+                            <span className="text-muted-foreground block text-right text-xs text-gray-500">Just now</span>
                         </div>
                     </div>
                 </div>
                 <div className="col-span-full border-y border-white/10 p-12 bg-black/40">
-                    <p className="text-center text-4xl font-semibold lg:text-7xl text-white">99.99% Uptime</p>
+                    <p className="text-center text-4xl font-semibold lg:text-7xl text-white">99.99% SLA</p>
                 </div>
                 <div className="relative col-span-full bg-black/20">
                     <div className="absolute z-10 max-w-lg px-6 pr-12 pt-6 md:px-12 md:pt-12">
                         <span className="text-muted-foreground flex items-center gap-2 text-gray-400">
                             <Activity className="size-4 text-red-500" />
-                            Activity feed
+                            Live Workspace Activity
                         </span>
 
                         <p className="my-8 text-2xl font-semibold text-white">
-                            Monitor your application's activity in real-time. <span className="text-muted-foreground text-gray-500"> Instantly identify and resolve issues.</span>
+                            Real-time visibility into workspace usage. <span className="text-muted-foreground text-gray-500"> Track compute, memory, and active sessions.</span>
                         </p>
                     </div>
                     <MonitoringChart />
