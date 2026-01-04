@@ -232,4 +232,55 @@ export class RunService {
       void this.updateRunStatus(metadata.runId, RunStatus.Completed);
     }, 3250);
   }
+
+  /**
+   * Signal the runner to stop a container for a given run.
+   * If RUNNER_API_URL is not configured, this is a no-op (simulated mode).
+   */
+  private async signalRunnerToStop(runId: string): Promise<void> {
+    const runnerUrl = this.configService.get<string>('RUNNER_API_URL');
+
+    if (!runnerUrl) {
+      this.logger.log(`[Simulated] Would signal runner to stop container for run ${runId}`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${runnerUrl.replace(/\/$/, '')}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`Runner stop API responded with status ${response.status} for run ${runId}`);
+      }
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Failed to signal runner to stop: ${err.message}`, err.stack);
+      // Don't throw - proceed with status update even if runner signal fails
+    }
+  }
+
+  /**
+   * Get all runs that are in 'running' status and have exceeded the timeout threshold.
+   * @param thresholdMs - Maximum allowed running time in milliseconds
+   */
+  async getStaleRuns(thresholdMs: number): Promise<RunMetadata[]> {
+    // Note: In production, you'd want to use Redis SCAN or maintain a sorted set.
+    // For now, this relies on the cleanup worker tracking active run IDs.
+    // This is a placeholder that would need to be enhanced with proper run tracking.
+    this.logger.debug(`Checking for stale runs older than ${thresholdMs}ms`);
+    return [];
+  }
+
+  /**
+   * Get all run IDs currently being tracked (for cleanup worker).
+   * In a real implementation, this would scan Redis keys or use a set.
+   */
+  async getActiveRunIds(): Promise<string[]> {
+    // Placeholder - in production, maintain a Redis set of active run IDs
+    return [];
+  }
 }
