@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: nebula-runner
+  tag: week2
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: "0.5"
+    memory: "256Mi"
+  requests:
+    cpu: "0.1"
+    memory: "128Mi"
+
+timeoutSeconds: 10

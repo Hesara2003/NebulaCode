@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 'use client'
 import { Activity, Map as MapIcon, MessageCircle } from 'lucide-react'
 import DottedMap from 'dotted-map'

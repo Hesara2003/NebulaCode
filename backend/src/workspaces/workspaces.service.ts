@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { StorageService } from '../storage/storage.service';
 
 export interface WorkspaceFile {
   id: string;
@@ -11,68 +12,52 @@ export interface WorkspaceFile {
   updatedAt: string;
 }
 
-const MOCK_WORKSPACE_FILES: Record<string, WorkspaceFile[]> = {
-  'demo-workspace': [
-    {
-      id: 'welcome-file',
-      workspaceId: 'demo-workspace',
-      name: 'welcome.ts',
-      path: '/src/welcome.ts',
-      language: 'typescript',
-      content: `// NebulaCode demo file\n// This content is served by the backend API.\n\nexport function greet(name: string) {\n  return \`Hello, \${name}!\`;\n}\n\nconsole.log(greet('Nebula Dev'));\n`,
-      createdAt: new Date('2024-01-01T00:00:00.000Z').toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'api-file',
-      workspaceId: 'demo-workspace',
-      name: 'server.ts',
-      path: '/src/server.ts',
-      language: 'typescript',
-      content: `import { createServer } from 'http';\n\nconst server = createServer((_, res) => {\n  res.writeHead(200);\n  res.end('NebulaCode API online');\n});\n\nserver.listen(8080);\n`,
-      createdAt: new Date('2024-01-03T00:00:00.000Z').toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'python-file',
-      workspaceId: 'demo-workspace',
-      name: 'runner.py',
-      path: '/scripts/runner.py',
-      language: 'python',
-      content: `import time\n\nif __name__ == "__main__":\n    for i in range(3):\n        print(f"Running task {i}")\n        time.sleep(0.5)\n`,
-      createdAt: new Date('2024-01-05T00:00:00.000Z').toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'readme-file',
-      workspaceId: 'demo-workspace',
-      name: 'README.md',
-      path: '/README.md',
-      language: 'markdown',
-      content: `# Nebula Workspace\n\n- Instant cloud IDE\n- Real-time collaboration\n- AI assistance built-in\n`,
-      createdAt: new Date('2024-01-07T00:00:00.000Z').toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ],
-};
-
 @Injectable()
 export class WorkspacesService {
-  getFile(workspaceId: string, fileId: string): WorkspaceFile {
-    const files = MOCK_WORKSPACE_FILES[workspaceId];
+  constructor(private readonly storageService: StorageService) { }
 
-    if (!files) {
-      throw new NotFoundException(`Workspace ${workspaceId} was not found.`);
+  async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
+    try {
+      // Decode fileId if it's base64 encoded or just use it as relative path
+      // For this implementation, we assume fileId IS the relative path (e.g., "src/main.ts")
+      const decodedFileId = decodeURIComponent(fileId);
+      const content = await this.storageService.getFile(workspaceId, decodedFileId);
+
+      const extension = decodedFileId.split('.').pop() || 'txt';
+      const language = this.getLanguageFromExtension(extension);
+
+      return {
+        id: fileId,
+        workspaceId,
+        name: decodedFileId.split('/').pop() || decodedFileId,
+        path: decodedFileId,
+        language,
+        content,
+        createdAt: new Date().toISOString(), // Storage doesn't track creation time easily without stat
+        updatedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      throw new NotFoundException(`File ${fileId} not found in workspace ${workspaceId}`);
     }
+  }
 
-    const file = files.find((item) => item.id === fileId);
+  async saveFile(workspaceId: string, fileId: string, content: string): Promise<void> {
+    const decodedFileId = decodeURIComponent(fileId);
+    await this.storageService.saveFile(workspaceId, decodedFileId, content);
+  }
 
-    if (!file) {
-      throw new NotFoundException(
-        `File ${fileId} was not found in workspace ${workspaceId}.`,
-      );
-    }
-
-    return file;
+  private getLanguageFromExtension(ext: string): string {
+    const map: Record<string, string> = {
+      ts: 'typescript',
+      tsx: 'typescript',
+      js: 'javascript',
+      jsx: 'javascript',
+      py: 'python',
+      md: 'markdown',
+      html: 'html',
+      css: 'css',
+      json: 'json',
+    };
+    return map[ext] || 'plaintext';
   }
 }

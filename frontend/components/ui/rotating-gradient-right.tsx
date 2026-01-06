@@ -8,7 +8,7 @@ import { DottedSurface } from '@/components/ui/dotted-surface'
 export default function RotatingGradientRight() {
   return (
     <section className="min-h-screen w-full bg-black text-white px-8 py-16 md:px-16 relative">
-      <DottedSurface className="pointer-events-none absolute inset-0 h-full w-full opacity-15" width={20} height={20} />
+      <DottedSurface className="pointer-events-none absolute inset-0 h-full w-full opacity-15" />
       <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2 relative z-10">
         {/* LEFT: Text */}
         <div className="relative mx-auto flex h-[40rem] w-full max-w-[60rem] items-center justify-center overflow-hidden rounded-3xl">

@@ -28,9 +28,7 @@ services:
     depends_on:
       - postgres
       - redis
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+
     networks:
       - nebulacode-network
 

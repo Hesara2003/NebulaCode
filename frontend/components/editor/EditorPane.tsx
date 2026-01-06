@@ -1,11 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "./MonacoEditor";
 import TabsBar from "./TabsBar";
 import type { FileEntity } from "@/types/editor";
 import { getFile } from "@/lib/api/files";
-import { Play, Share2 } from "lucide-react";
+import {
+  createRun,
+  getRunLogs,
+  getRunStatus,
+  type RunResponse,
+  type RunStatus,
+} from "@/lib/api/run";
+import { downloadTextFile } from "@/lib/utils";
+import { connectRunWebSocket } from "@/lib/runWebSocket";
+import { Download, Loader2, Play, RotateCcw, Share2, Save, Check } from "lucide-react";
+import { saveFile } from "@/lib/api/files";
+import { useCollaborationStore } from "@/lib/yjs";
+import { getAwareness, getDocumentText } from "@/lib/yjs/document";
+import type { OnMount } from "@monaco-editor/react";
+import type { editor as MonacoEditorNS } from "monaco-editor";
+
+type MonacoBindingClass = typeof import("y-monaco")["MonacoBinding"];
+type MonacoBindingInstance = InstanceType<MonacoBindingClass>;
 
 interface EditorPaneProps {
   workspaceId: string;
@@ -13,20 +30,63 @@ interface EditorPaneProps {
   onActiveFileChange?: (fileId: string | null) => void;
 }
 
+const POLL_INTERVAL_MS = 3000;
+const TERMINAL_CLEAR_EVENT = "nebula-terminal-clear";
+
+interface RunSnapshot {
+  runId: string;
+  status: RunStatus;
+  fileId: string;
+  fileName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const isRunActive = (status: RunStatus) => status === "queued" || status === "running";
+const isTerminalStatus = (status: RunStatus) =>
+  status === "completed" || status === "failed" || status === "cancelled" || status === "timed_out";
+
 const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps) => {
   const [openTabs, setOpenTabs] = useState<FileEntity[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<FileEntity | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sharedContent, setSharedContent] = useState<string>("");
+  const [showConflictBanner, setShowConflictBanner] = useState<boolean>(false);
+  const [runStates, setRunStates] = useState<Record<string, RunSnapshot>>({});
+  const [isRunRequestPending, setIsRunRequestPending] = useState(false);
+  const [logsDownloadPending, setLogsDownloadPending] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [pollingError, setPollingError] = useState<string | null>(null);
+  const [isManualStatusRefreshPending, setIsManualStatusRefreshPending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
+  const editorInstanceRef = useRef<MonacoEditorNS.IStandaloneCodeEditor | null>(null);
+  const bindingRef = useRef<MonacoBindingInstance | null>(null);
+  const bindingClassRef = useRef<MonacoBindingClass | null>(null);
+  const currentDocumentIdRef = useRef<string | null>(null);
+  const runStatesRef = useRef<Record<string, RunSnapshot>>({});
+
+  const joinDocument = useCollaborationStore((state) => state.joinDocument);
+  const leaveDocument = useCollaborationStore((state) => state.leaveDocument);
+  const initializeDocument = useCollaborationStore((state) => state.initializeDocument);
+  const lastRemoteUpdate = useCollaborationStore((state) => state.lastRemoteUpdate);
+  const clearRemoteUpdate = useCollaborationStore((state) => state.clearRemoteUpdate);
+  const currentUser = useCollaborationStore((state) => state.currentUser);
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    runStatesRef.current = runStates;
+  }, [runStates]);
 
   const openFile = useCallback(
     async (targetFileId: string, options?: { optimisticActive?: boolean }) => {
@@ -46,6 +106,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         setActiveFile(data);
         setActiveTabId(data.id);
         onActiveFileChange?.(data.id);
+        setRunError(null);
         setOpenTabs((prev) => {
           const exists = prev.some((tab) => tab.id === data.id);
           if (exists) {
@@ -73,8 +134,11 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setActiveTabId(null);
       setActiveFile(null);
       setOpenTabs([]);
+      setSharedContent("");
       setIsLoading(false);
       setErrorMessage(null);
+      setRunStates({});
+      setRunError(null);
       return;
     }
 
@@ -115,38 +179,417 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     void openFile(pendingFileIdRef.current, { optimisticActive: true });
   };
 
-  const handleEditorChange = (value: string | undefined) => {
-    setActiveFile((prev) =>
-      prev
-        ? {
-            ...prev,
-            content: value ?? prev.content ?? "",
-          }
-        : prev
-    );
-    setOpenTabs((prev) =>
-      prev.map((tab) =>
-        tab.id === activeTabId
-          ? {
-              ...tab,
-              content: value ?? tab.content ?? "",
-            }
-          : tab
-      )
-    );
+  const handleEditorMount: OnMount = (editor) => {
+    editorInstanceRef.current = editor;
   };
 
-  const resolvedFile: FileEntity =
-    activeFile ?? {
-      id: "placeholder-file",
-      name: "Loading.ts",
-      path: "/Loading.ts",
-      language: "typescript",
-      content:
-        "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+  useEffect(() => {
+    const documentId = activeFile?.id;
+    const initialContent = activeFile?.content ?? "";
+
+    let disposeTextObserver: (() => void) | undefined;
+
+    const setupCollaboration = async () => {
+      if (!documentId) {
+        return;
+      }
+
+      currentDocumentIdRef.current = documentId;
+
+      await joinDocument(documentId);
+      initializeDocument(documentId, initialContent);
+
+      const text = getDocumentText(documentId);
+
+      const synchronizeState = () => {
+        const nextContent = text.toString();
+        setSharedContent(nextContent);
+        setActiveFile((prev) =>
+          prev && prev.id === documentId ? { ...prev, content: nextContent } : prev
+        );
+        setOpenTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === documentId
+              ? {
+                ...tab,
+                content: nextContent,
+              }
+              : tab
+          )
+        );
+      };
+
+      synchronizeState();
+
+      const observer = () => {
+        synchronizeState();
+      };
+
+      text.observe(observer);
+      disposeTextObserver = () => {
+        text.unobserve(observer);
+      };
     };
+
+    setupCollaboration().catch((error) => {
+      console.error("[Collab] failed to setup document", error);
+    });
+
+    return () => {
+      disposeTextObserver?.();
+      if (documentId) {
+        leaveDocument(documentId);
+      }
+      currentDocumentIdRef.current = null;
+    };
+  }, [activeFile?.id, activeFile?.content, initializeDocument, joinDocument, leaveDocument]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const attachBinding = async () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const editorInstance = editorInstanceRef.current;
+      const documentId = currentDocumentIdRef.current;
+      if (!editorInstance || !documentId) {
+        return;
+      }
+
+      const model = editorInstance.getModel();
+      if (!model) {
+        return;
+      }
+
+      const awareness = getAwareness(documentId);
+      awareness.setLocalState({
+        userId: currentUser?.id ?? "guest",
+        name: currentUser?.name ?? "Guest",
+        color: currentUser?.color ?? "#6366F1",
+      });
+
+      if (!bindingClassRef.current) {
+        const module = await import("y-monaco");
+        if (disposed) {
+          return;
+        }
+        bindingClassRef.current = module.MonacoBinding;
+      }
+
+      const Binding = bindingClassRef.current;
+      if (!Binding) {
+        return;
+      }
+
+      bindingRef.current?.destroy();
+      bindingRef.current = new Binding(
+        getDocumentText(documentId),
+        model,
+        new Set([editorInstance]),
+        awareness
+      );
+
+      if (disposed) {
+        bindingRef.current?.destroy();
+        bindingRef.current = null;
+      }
+    };
+
+    void attachBinding();
+
+    return () => {
+      disposed = true;
+      bindingRef.current?.destroy();
+      bindingRef.current = null;
+    };
+  }, [activeFile?.id, currentUser?.color, currentUser?.id, currentUser?.name]);
+
+  useEffect(() => {
+    if (!lastRemoteUpdate || lastRemoteUpdate.documentId !== currentDocumentIdRef.current) {
+      return;
+    }
+
+    setShowConflictBanner(true);
+    const timer = window.setTimeout(() => {
+      setShowConflictBanner(false);
+      clearRemoteUpdate();
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [lastRemoteUpdate, clearRemoteUpdate]);
+
+  const upsertRunSnapshot = (file: FileEntity, response: RunResponse) => {
+    setRunStates((prev) => ({
+      ...prev,
+      [file.id]: {
+        runId: response.runId,
+        status: response.status,
+        fileId: file.id,
+        fileName: file.name ?? file.path ?? file.id,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt,
+      },
+    }));
+  };
+
+  const dispatchTerminalClear = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.dispatchEvent(new CustomEvent(TERMINAL_CLEAR_EVENT));
+  };
+
+  const activeRun = activeFile ? runStates[activeFile.id] ?? null : null;
+
+  const isAnyRunInFlight = useMemo(
+    () => Object.values(runStates).some((run) => run && isRunActive(run.status)),
+    [runStates]
+  );
+
+  const globalInFlightRun = useMemo<RunSnapshot | null>(() => {
+    return Object.values(runStates).find((run) => run && isRunActive(run.status)) ?? null;
+  }, [runStates]);
+
+  const displayedRun = activeRun || globalInFlightRun;
+
+  const activeRunInFlight = Boolean(activeRun && isRunActive(activeRun.status));
+  const hasOtherRunInFlight = isAnyRunInFlight && !activeRunInFlight;
+
+  const runButtonDisabled =
+    !activeFile ||
+    isLoading ||
+    isRunRequestPending ||
+    activeRunInFlight ||
+    hasOtherRunInFlight;
+
+  const runButtonTooltip = !activeFile
+    ? "Open a file to run"
+    : isLoading
+      ? "File is still loading"
+      : isRunRequestPending
+        ? "Starting run"
+        : activeRunInFlight
+          ? "This file already has a run in progress"
+          : hasOtherRunInFlight
+            ? "Another file is currently running"
+            : undefined;
+
+  const canRerun = Boolean(
+    activeFile &&
+    activeRun &&
+    isTerminalStatus(activeRun.status) &&
+    !isAnyRunInFlight
+  );
+  const canDownloadLogs = Boolean(activeRun && isTerminalStatus(activeRun.status));
+
+  const handleRun = async () => {
+    const fileSnapshot = activeFile;
+    if (
+      !fileSnapshot ||
+      isRunRequestPending ||
+      activeRunInFlight ||
+      hasOtherRunInFlight
+    ) {
+      return;
+    }
+
+    setRunError(null);
+    setIsRunRequestPending(true);
+    try {
+      const response = await createRun({
+        workspaceId,
+        fileId: fileSnapshot.id,
+        language: fileSnapshot.language,
+      });
+
+      upsertRunSnapshot(fileSnapshot, response);
+      dispatchTerminalClear();
+    } catch (error) {
+      console.error("Failed to start run", error);
+      setRunError("Unable to start run. Please try again.");
+    } finally {
+      setIsRunRequestPending(false);
+    }
+  };
+
+  const handleDownloadLogs = async () => {
+    if (!activeRun || !canDownloadLogs || logsDownloadPending) {
+      return;
+    }
+
+    setRunError(null);
+    setLogsDownloadPending(true);
+    try {
+      const payload = await getRunLogs(activeRun.runId);
+      const filename = payload.filename || `run-${activeRun.runId}.log`;
+      downloadTextFile(filename, payload.content);
+    } catch (error) {
+      console.error("Failed to download logs", error);
+      setRunError("Unable to download logs right now. Please try again.");
+    } finally {
+      setLogsDownloadPending(false);
+    }
+  };
+
+  const refreshActiveRunStatuses = useCallback(async () => {
+    const entries = Object.entries(runStatesRef.current).filter(
+      ([, snapshot]) => (snapshot ? isRunActive(snapshot.status) : false)
+    ) as Array<[string, RunSnapshot]>;
+
+    if (!entries.length) {
+      setPollingError(null);
+      return;
+    }
+
+    try {
+      const updates = await Promise.all(
+        entries.map(async ([fileKey, snapshot]) => {
+          const data = await getRunStatus(snapshot.runId);
+          return { fileKey, data };
+        })
+      );
+
+      setRunStates((prev) => {
+        const next = { ...prev } as Record<string, RunSnapshot>;
+        for (const update of updates) {
+          const existing = next[update.fileKey];
+          next[update.fileKey] = {
+            fileId: update.fileKey,
+            fileName: existing?.fileName ?? update.data.fileId,
+            runId: update.data.runId,
+            status: update.data.status,
+            createdAt: update.data.createdAt,
+            updatedAt: update.data.updatedAt,
+          };
+        }
+        return next;
+      });
+      setPollingError(null);
+    } catch (error) {
+      console.error("Failed to refresh run status", error);
+      setPollingError("Unable to refresh run status. Retrying automatically.");
+    }
+  }, []);
+
+  const handleManualStatusRefresh = async () => {
+    if (isManualStatusRefreshPending) {
+      return;
+    }
+    setIsManualStatusRefreshPending(true);
+    try {
+      await refreshActiveRunStatuses();
+    } finally {
+      setIsManualStatusRefreshPending(false);
+    }
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!activeFile || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      // Use sharedContent as it represents the latest state in the editor including Yjs updates
+      const contentToSave = sharedContent;
+      await saveFile(workspaceId, activeFile.id, contentToSave);
+      setLastSavedAt(new Date());
+    } catch (error) {
+      console.error("Failed to save file", error);
+      setErrorMessage("Failed to save changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeFile, isSaving, sharedContent, workspaceId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        void handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave]);
+
+  useEffect(() => {
+    if (!isAnyRunInFlight) {
+      setPollingError(null);
+      return;
+    }
+
+    const tick = () => {
+      void refreshActiveRunStatuses();
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isAnyRunInFlight, refreshActiveRunStatuses]);
+
+  useEffect(() => {
+    if (!activeRun?.runId) {
+      return;
+    }
+
+    const currentRun = activeRun;
+
+    const disconnect = connectRunWebSocket(currentRun.runId, {
+      onStatus: (payload) => {
+        setRunStates((prev) => {
+          const existing = prev[currentRun.fileId];
+          return {
+            ...prev,
+            [currentRun.fileId]: {
+              fileId: currentRun.fileId,
+              fileName: existing?.fileName ?? currentRun.fileName,
+              runId: currentRun.runId,
+              status: (payload.status as RunStatus) ?? existing?.status ?? "unknown",
+              createdAt: existing?.createdAt,
+              updatedAt: payload.updatedAt ?? new Date().toISOString(),
+            },
+          };
+        });
+      },
+      onLog: (payload) => {
+        console.warn(
+          "[RunWebSocket] Received log payload before streaming is wired up:",
+          payload,
+        );
+      },
+      onError: (error) => {
+        console.warn(
+          `[RunWebSocket] Placeholder connection error for run ${currentRun.runId}:`,
+          error,
+        );
+      },
+    });
+
+    return () => {
+      disconnect();
+    };
+  }, [activeRun]);
+
+  const resolvedFile: FileEntity =
+    activeFile
+      ? { ...activeFile, content: sharedContent }
+      : {
+        id: "placeholder-file",
+        name: "Loading.ts",
+        path: "/Loading.ts",
+        language: "typescript",
+        content:
+          "// Welcome to Monaco\n// Your file will appear as soon as the backend responds.\n",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1e1e1e]">
@@ -160,14 +603,102 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           />
         </div>
         <div className="hidden items-center gap-3 px-4 sm:flex">
-          <button className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-green-600">
-            <Play size={14} /> Run
+          {displayedRun ? (
+            <div className="flex items-center gap-2">
+              <RunStatusPill status={displayedRun.status} />
+              {!activeRun && displayedRun.fileName ? (
+                <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-gray-300">
+                  {displayedRun.fileName}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-2 mr-2">
+            {isSaving ? (
+              <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-400">
+                <Loader2 size={10} className="animate-spin" /> Saving...
+              </span>
+            ) : lastSavedAt ? (
+              <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-500 transition-opacity duration-1000">
+                <Check size={10} /> Saved
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={isSaving || !activeFile}
+            className="flex items-center gap-2 rounded bg-zinc-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-600 disabled:opacity-50"
+            title="Save (Ctrl+S)"
+          >
+            <Save size={14} />
           </button>
-          <button className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500">
+          <button
+            type="button"
+            onClick={() => {
+              void handleRun();
+            }}
+            disabled={runButtonDisabled}
+            title={runButtonTooltip}
+            className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRunRequestPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            {isRunRequestPending ? "Starting..." : "Run"}
+          </button>
+          {canRerun ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleRun();
+              }}
+              className="flex items-center gap-2 rounded bg-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-slate-600"
+            >
+              <RotateCcw size={14} /> Rerun
+            </button>
+          ) : null}
+          {canDownloadLogs ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleDownloadLogs();
+              }}
+              disabled={logsDownloadPending}
+              className="flex items-center gap-2 rounded bg-indigo-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {logsDownloadPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {logsDownloadPending ? "Preparing..." : "Download Logs"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded bg-blue-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500"
+          >
             <Share2 size={14} /> Share
           </button>
         </div>
       </div>
+
+      {runError ? (
+        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-300">
+          {runError}
+        </div>
+      ) : null}
+
+      {pollingError ? (
+        <div className="flex items-center justify-between gap-3 bg-yellow-900/40 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-wide text-yellow-100">
+          <span>{pollingError}</span>
+          <button
+            type="button"
+            onClick={() => {
+              void handleManualStatusRefresh();
+            }}
+            disabled={isManualStatusRefreshPending}
+            className="rounded bg-yellow-600 px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-yellow-50 transition enabled:hover:bg-yellow-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isManualStatusRefreshPending ? "Refreshing..." : "Retry now"}
+          </button>
+        </div>
+      ) : null}
 
       <div className="relative flex-1">
         {isLoading ? (
@@ -188,15 +719,41 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             </button>
           </div>
         ) : null}
+        {showConflictBanner ? (
+          <div className="pointer-events-none absolute top-4 right-4 z-20 rounded-md border border-amber-400/40 bg-amber-600/20 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-200 shadow-lg">
+            Collaborator edits applied
+          </div>
+        ) : null}
         <MonacoEditor
+          key={resolvedFile.id}
           fileName={resolvedFile.name}
           language={resolvedFile.language}
           value={resolvedFile.content ?? ""}
           readOnly={isLoading}
-          onChange={handleEditorChange}
+          onMount={handleEditorMount}
         />
       </div>
     </div>
+  );
+};
+
+const statusStyles: Record<RunStatus, { label: string; dot: string; text: string }> = {
+  queued: { label: "Queued", dot: "bg-yellow-400", text: "text-yellow-200 bg-yellow-400/10" },
+  running: { label: "Running", dot: "bg-emerald-400", text: "text-emerald-200 bg-emerald-400/10" },
+  completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10" },
+  failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10" },
+  cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10" },
+  timed_out: { label: "Timed Out", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10" },
+  unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
+};
+
+const RunStatusPill = ({ status }: { status: RunStatus }) => {
+  const style = statusStyles[status] ?? statusStyles.unknown;
+  return (
+    <span className={`flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${style.text}`}>
+      <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
+      {style.label}
+    </span>
   );
 };
 

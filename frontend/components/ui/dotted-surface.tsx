@@ -17,14 +17,13 @@ export function DottedSurface({ className, width, height, ...props }: DottedSurf
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    particles: THREE.Points[];
-    animationId: number;
     count: number;
   } | null>(null);
   const animationIdRef = useRef<number>(0); // Use ref to store animationId
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const targetContainer = containerRef.current;
+    if (!targetContainer) return;
 
     const SEPARATION = 150;
     const AMOUNTX = width || 40; // Use width if provided, fallback to default
@@ -65,15 +64,15 @@ export function DottedSurface({ className, width, height, ...props }: DottedSurf
       if (document && document.body) {
         document.body.appendChild(canvas);
         appendedToBody = true;
-      } else if (containerRef.current) {
-        containerRef.current.appendChild(canvas);
+      } else if (targetContainer) {
+        targetContainer.appendChild(canvas);
       }
-    } catch (e) {
-      if (containerRef.current) containerRef.current.appendChild(canvas);
+    } catch {
+      // Fallback to mounting inside the container if body append fails for any reason
+      if (targetContainer) targetContainer.appendChild(canvas);
     }
 
     // Create particles
-    const particles: THREE.Points[] = [];
     const positions: number[] = [];
     const colors: number[] = [];
 
@@ -136,6 +135,7 @@ export function DottedSurface({ className, width, height, ...props }: DottedSurf
 
       positionAttribute.needsUpdate = true;
 
+      // Update point sizes based on wave
       renderer.render(scene, camera);
       count += 0.1;
     };
@@ -157,8 +157,6 @@ export function DottedSurface({ className, width, height, ...props }: DottedSurf
       scene,
       camera,
       renderer,
-      particles: [points],
-      animationId: animationIdRef.current, // Use animationId from ref
       count,
     };
 
@@ -186,8 +184,8 @@ export function DottedSurface({ className, width, height, ...props }: DottedSurf
           const domEl = sceneRef.current.renderer.domElement as HTMLCanvasElement;
           if (appendedToBody && document && document.body && document.body.contains(domEl)) {
             document.body.removeChild(domEl);
-          } else if (containerRef.current && containerRef.current.contains(domEl)) {
-            containerRef.current.removeChild(domEl);
+          } else if (targetContainer && targetContainer.contains(domEl)) {
+            targetContainer.removeChild(domEl);
           }
         }
       }
