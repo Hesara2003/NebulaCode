@@ -69,27 +69,20 @@ export class WorkspacesService {
   constructor(private readonly filesService: FilesService) { }
 
   async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
-    const files = MOCK_WORKSPACE_FILES[workspaceId];
-
-    if (!files) {
-      throw new NotFoundException(`Workspace ${workspaceId} was not found.`);
-    }
-
-    const file = files.find((item) => item.id === fileId);
-
-    if (!file) {
-      throw new NotFoundException(
-        `File ${fileId} was not found in workspace ${workspaceId}.`,
-      );
-    }
-
-    // Try to load content from persistence
     try {
       const content = await this.filesService.getFile(workspaceId, fileId);
-      return { ...file, content };
+      return {
+        id: fileId,
+        workspaceId,
+        name: fileId.split('/').pop() || fileId,
+        path: fileId,
+        language: this.getLanguageFromExt(fileId),
+        content,
+        createdAt: new Date().toISOString(), // Metadata not persisted yet
+        updatedAt: new Date().toISOString(),
+      };
     } catch (error) {
-      // If file not found in persistence, fallback to mock content (first load)
-      return file;
+      throw new NotFoundException(`File ${fileId} not found in workspace ${workspaceId}`);
     }
   }
 
@@ -98,56 +91,77 @@ export class WorkspacesService {
     fileId: string,
     content: string,
   ): Promise<WorkspaceFile> {
-    const files = MOCK_WORKSPACE_FILES[workspaceId];
-
-    if (!files) {
-      throw new NotFoundException(`Workspace ${workspaceId} was not found.`);
-    }
-
-    const fileIndex = files.findIndex((item) => item.id === fileId);
-
-    if (fileIndex === -1) {
-      throw new NotFoundException(
-        `File ${fileId} was not found in workspace ${workspaceId}.`,
-      );
-    }
-
-    // Save content to persistence
     await this.filesService.saveFile(workspaceId, fileId, content);
 
-    const updatedFile = {
-      ...files[fileIndex],
+    return {
+      id: fileId,
+      workspaceId,
+      name: fileId.split('/').pop() || fileId,
+      path: fileId,
+      language: this.getLanguageFromExt(fileId),
       content,
+      createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
-    files[fileIndex] = updatedFile;
-
-    return updatedFile;
   }
-  getFileTree(workspaceId: string): FileNode[] {
-    // Mock file tree structure
-    return [
-      {
-        id: '1',
-        name: 'src',
-        type: 'folder',
-        children: [
-          { id: '2', name: 'welcome.ts', type: 'file' },
-          { id: '3', name: 'server.ts', type: 'file' },
-          {
-            id: '4',
-            name: 'scripts',
-            type: 'folder',
-            children: [
-              { id: '5', name: 'runner.py', type: 'file' }
-            ]
+
+  async getFileTree(workspaceId: string): Promise<FileNode[]> {
+    const filePaths = await this.filesService.getFiles(workspaceId);
+    return this.buildFileTree(filePaths);
+  }
+
+  async createFile(workspaceId: string, fileId: string, content: string = ''): Promise<WorkspaceFile> {
+    return this.saveFile(workspaceId, fileId, content);
+  }
+
+  async deleteFile(workspaceId: string, fileId: string): Promise<void> {
+    await this.filesService.deleteFile(workspaceId, fileId);
+  }
+
+  private buildFileTree(paths: string[]): FileNode[] {
+    const root: FileNode[] = [];
+
+    for (const pathStr of paths) {
+      const parts = pathStr.split('/');
+      let currentLevel = root;
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isFile = i === parts.length - 1;
+        const existingNode = currentLevel.find(node => node.name === part);
+
+        if (existingNode) {
+          if (isFile) {
+            // Duplicate file? Should not happen with unique paths
+          } else {
+            currentLevel = existingNode.children!;
           }
-        ]
-      },
-      { id: '6', name: 'README.md', type: 'file' },
-      { id: '7', name: 'package.json', type: 'file' }
-    ];
+        } else {
+          const newNode: FileNode = {
+            id: isFile ? pathStr : parts.slice(0, i + 1).join('/'),
+            name: part,
+            type: isFile ? 'file' : 'folder',
+            children: isFile ? undefined : [],
+          };
+          currentLevel.push(newNode);
+          if (!isFile) {
+            currentLevel = newNode.children!;
+          }
+        }
+      }
+    }
+    return root;
+  }
+
+  private getLanguageFromExt(filename: string): string {
+    if (filename.endsWith('.ts')) return 'typescript';
+    if (filename.endsWith('.js')) return 'javascript';
+    if (filename.endsWith('.py')) return 'python';
+    if (filename.endsWith('.md')) return 'markdown';
+    if (filename.endsWith('.json')) return 'json';
+    if (filename.endsWith('.html')) return 'html';
+    if (filename.endsWith('.css')) return 'css';
+    return 'plaintext';
   }
 }
 

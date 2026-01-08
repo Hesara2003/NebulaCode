@@ -31,4 +31,9 @@ export class S3StubPersistence implements PersistenceStrategy {
         this.logger.log(`[S3 Stub] Deleting from bucket: ${path}`);
         this.storage.delete(path);
     }
+
+    async list(dir: string): Promise<string[]> {
+        this.logger.log(`[S3 Stub] Listing: ${dir}`);
+        return Array.from(this.storage.keys()).filter(key => key.startsWith(dir));
+    }
 }

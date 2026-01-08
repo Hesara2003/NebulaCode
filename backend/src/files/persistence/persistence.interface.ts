@@ -4,4 +4,5 @@ export abstract class PersistenceStrategy {
     abstract load(path: string): Promise<string>;
     abstract exists(path: string): Promise<boolean>;
     abstract delete(path: string): Promise<void>;
+    abstract list(dir: string): Promise<string[]>;
 }

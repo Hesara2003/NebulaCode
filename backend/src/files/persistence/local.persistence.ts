@@ -51,6 +51,24 @@ export class LocalPersistence implements PersistenceStrategy {
         }
     }
 
+    async list(dir: string): Promise<string[]> {
+        const fullPath = this.resolvePath(dir);
+        try {
+            const dirents = await fs.readdir(fullPath, { withFileTypes: true, recursive: true });
+            return dirents
+                .filter(dirent => dirent.isFile())
+                .map(dirent => {
+                    const absolutePath = path.join(dirent.parentPath ?? dirent.path, dirent.name);
+                    return path.relative(fullPath, absolutePath).replace(/\\/g, '/');
+                });
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return [];
+            }
+            throw new InternalServerErrorException(`Failed to list files: ${error.message}`);
+        }
+    }
+
     private resolvePath(filePath: string): string {
         // Prevent directory traversal attacks
         const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');

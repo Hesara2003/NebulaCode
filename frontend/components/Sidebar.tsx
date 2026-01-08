@@ -30,31 +30,11 @@ const Sidebar = ({ activeFileId, onOpenFile }: SidebarProps) => {
           <span className="text-sm">NEBULACODE</span>
         </div>
 
-        {/* Files */}
-        <div className="flex flex-col">
-          {explorerFiles.map((file) => {
-            const isActive = file.id === activeFileId;
-            return (
-              <button
-                key={file.id}
-                type="button"
-                onClick={() => onOpenFile?.(file.id)}
-                className={cn(
-                  "flex items-center gap-2 px-6 py-1 text-left text-sm transition",
-                  isActive
-                    ? "bg-[#37373d] text-white border-l-2 border-blue-500"
-                    : "text-gray-300 hover:bg-[#2a2d2e]"
-                )}
-              >
-                <File size={14} className={file.accent} />
-                <span>{file.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Optional: keep FileExplorer for later use */}
-        {/* <FileExplorer /> */}
+        <FileExplorer
+          workspaceId="demo-workspace"
+          activeFileId={activeFileId}
+          onOpenFile={onOpenFile}
+        />
       </div>
     </div>
   );

@@ -13,9 +13,18 @@ export class FilesService {
         await this.persistence.save(path, content);
     }
 
+    async deleteFile(workspaceId: string, fileId: string): Promise<void> {
+        const path = this.getFilePath(workspaceId, fileId);
+        await this.persistence.delete(path);
+    }
+
     async getFile(workspaceId: string, fileId: string): Promise<string> {
         const path = this.getFilePath(workspaceId, fileId);
         return await this.persistence.load(path);
+    }
+
+    async getFiles(workspaceId: string): Promise<string[]> {
+        return await this.persistence.list(workspaceId);
     }
 
     async saveLog(runId: string, content: string): Promise<void> {
