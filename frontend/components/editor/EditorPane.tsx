@@ -18,6 +18,7 @@ import { Download, Loader2, Play, RotateCcw, Share2, Save, Check } from "lucide-
 import { saveFile } from "@/lib/api/files";
 import { useCollaborationStore } from "@/lib/yjs";
 import { getAwareness, getDocumentText } from "@/lib/yjs/document";
+import { createDocumentId } from "@/lib/yjs/ids";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditorNS } from "monaco-editor";
 
@@ -184,13 +185,14 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   };
 
   useEffect(() => {
-    const documentId = activeFile?.id;
+    const fileId = activeFile?.id;
+    const documentId = fileId ? createDocumentId(workspaceId, fileId) : null;
     const initialContent = activeFile?.content ?? "";
 
     let disposeTextObserver: (() => void) | undefined;
 
     const setupCollaboration = async () => {
-      if (!documentId) {
+      if (!documentId || !fileId) {
         return;
       }
 
@@ -205,11 +207,11 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         const nextContent = text.toString();
         setSharedContent(nextContent);
         setActiveFile((prev) =>
-          prev && prev.id === documentId ? { ...prev, content: nextContent } : prev
+          prev && prev.id === fileId ? { ...prev, content: nextContent } : prev
         );
         setOpenTabs((prev) =>
           prev.map((tab) =>
-            tab.id === documentId
+            tab.id === fileId
               ? {
                 ...tab,
                 content: nextContent,
@@ -237,12 +239,12 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
     return () => {
       disposeTextObserver?.();
-      if (documentId) {
+      if (documentId && fileId) {
         leaveDocument(documentId);
       }
       currentDocumentIdRef.current = null;
     };
-  }, [activeFile?.id, activeFile?.content, initializeDocument, joinDocument, leaveDocument]);
+  }, [activeFile?.id, activeFile?.content, initializeDocument, joinDocument, leaveDocument, workspaceId]);
 
   useEffect(() => {
     let disposed = false;

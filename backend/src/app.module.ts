@@ -6,7 +6,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 import { AuthModule } from './auth';
-import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { WorkspaceModule } from './workspace/workspace.module';
@@ -14,6 +13,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
 
 import { RedisModule } from './redis/redis.module';
 import { RunModule } from './run/run.module';
+import { CollabModule } from './collab/collab.module';
 
 @Module({
   imports: [
@@ -33,13 +33,14 @@ import { RunModule } from './run/run.module';
     }),
 
     RedisModule,
+    CollabModule,
     WorkspacesModule,
     AuthModule,
     WorkspaceModule,
     RunModule,
   ],
   controllers: [AppController],
-  providers: [AppService, WebsocketGateway, EditorSyncGateway],
+  providers: [AppService, WebsocketGateway],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
