@@ -40,9 +40,14 @@ type DocumentLeavePayload = {
   documentId?: unknown;
 };
 
+type AwarenessUpdatePayload = {
+  documentId?: unknown;
+  update?: unknown;
+  timestamp?: unknown;
+};
+
 const namespace = process.env.COLLAB_NAMESPACE ?? DEFAULT_COLLAB_NAMESPACE;
-const socketPath =
-  process.env.COLLAB_SOCKET_PATH ?? DEFAULT_COLLAB_SOCKET_PATH;
+const socketPath = process.env.COLLAB_SOCKET_PATH ?? DEFAULT_COLLAB_SOCKET_PATH;
 const allowedOrigins = resolveAllowedOrigins(
   process.env.COLLAB_ALLOWED_ORIGINS,
 );
@@ -123,7 +128,7 @@ export class EditorSyncGateway
   async handleDocumentJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload?: DocumentJoinPayload,
-  ): void {
+  ): Promise<void> {
     try {
       const documentId = this.ensureString(payload?.documentId);
       if (!documentId) {
@@ -164,7 +169,7 @@ export class EditorSyncGateway
   async handleDocumentUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload?: DocumentUpdatePayload,
-  ): void {
+  ): Promise<void> {
     try {
       const documentId = this.ensureString(payload?.documentId);
       if (!documentId) {
@@ -186,15 +191,13 @@ export class EditorSyncGateway
       const serverTimestamp = Date.now();
 
       await this.documents.applyUpdate(documentId, update);
-      client.broadcast
-        .to(this.roomName(documentId))
-        .emit('document:update', {
-          documentId,
-          update,
-          actor: client.id,
-          clientTimestamp,
-          serverTimestamp,
-        });
+      client.broadcast.to(this.roomName(documentId)).emit('document:update', {
+        documentId,
+        update,
+        actor: client.id,
+        clientTimestamp,
+        serverTimestamp,
+      });
       client.emit('document:update:ack', {
         documentId,
         serverTimestamp,
@@ -217,6 +220,44 @@ export class EditorSyncGateway
     }
 
     this.untrackDocumentMembership(client, documentId);
+  }
+
+  @SubscribeMessage('awareness:update')
+  handleAwarenessUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: AwarenessUpdatePayload,
+  ): void {
+    const documentId = this.ensureString(payload?.documentId);
+    if (!documentId) {
+      return;
+    }
+
+    const update = this.ensureUint8Array(payload?.update);
+    if (!update) {
+      return;
+    }
+
+    const timestamp = this.ensureNumber(payload?.timestamp) ?? Date.now();
+
+    client.broadcast.to(this.roomName(documentId)).emit('awareness:update', {
+      documentId,
+      update,
+      actor: client.id,
+      timestamp,
+    });
+  }
+
+  @SubscribeMessage('awareness:query')
+  handleAwarenessQuery(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: { documentId?: unknown },
+  ): void {
+    const documentId = this.ensureString(payload?.documentId);
+    if (!documentId) {
+      return;
+    }
+
+    client.broadcast.to(this.roomName(documentId)).emit('awareness:query');
   }
 
   private extractParticipant(client: Socket): PresenceParticipant {
@@ -250,17 +291,6 @@ export class EditorSyncGateway
     const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
 
     return `${first}${second}`.toUpperCase();
-  }
-
-  private getOrCreateDocument(documentId: string): Doc {
-    let document = this.documents.get(documentId);
-
-    if (!document) {
-      document = new Doc();
-      this.documents.set(documentId, document);
-    }
-
-    return document;
   }
 
   private ensureUint8Array(input: unknown): Uint8Array | undefined {

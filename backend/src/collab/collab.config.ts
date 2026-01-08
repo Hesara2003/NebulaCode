@@ -11,7 +11,7 @@ export function resolveAllowedOrigins(raw?: string): (string | RegExp)[] {
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
 
-  const normalized = entries.map((origin) => {
+  const normalized: (string | RegExp)[] = entries.map((origin) => {
     try {
       // Validate origin-like string by constructing URL
       // eslint-disable-next-line no-new
