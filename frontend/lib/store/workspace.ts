@@ -6,6 +6,7 @@ import { FileNode } from "@/types/editor";
 interface FileState {
     isDirty: boolean;
     lastSavedAt: number | null;
+    content?: string;
 }
 
 interface WorkspaceState {
@@ -31,6 +32,11 @@ interface WorkspaceState {
      * Updates state to { isDirty: false, lastSavedAt: now } on success.
      */
     saveFile: (workspaceId: string, fileId: string, content: string) => Promise<boolean>;
+
+    // Run Safety
+    isRunning: boolean;
+    setIsRunning: (isRunning: boolean) => void;
+    forceSaveAll: (workspaceId: string) => Promise<boolean>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -39,6 +45,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     workspaceMetadata: null,
     isLoading: false,
     fileTree: [],
+    isRunning: false,
 
     fetchWorkspace: async (id) => {
         set({ isLoading: true });
@@ -96,6 +103,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
                 get().setActiveFileId(null);
             }
 
+            // Cleanup state for deleted file
+            set((state) => {
+                const newFiles = { ...state.files };
+                delete newFiles[fileId];
+                return { files: newFiles };
+            });
+
             await get().refreshFileTree(workspaceId);
         } catch (error) {
             console.error("Failed to delete file:", error);
@@ -115,6 +129,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             if (activeFileId === oldFileId) {
                 get().setActiveFileId(newFileId);
             }
+
+            // Update renamed file state
+            set((state) => {
+                const newFiles = { ...state.files };
+                if (newFiles[oldFileId]) {
+                    newFiles[newFileId] = { ...newFiles[oldFileId] };
+                    delete newFiles[oldFileId];
+                }
+                return { files: newFiles };
+            });
 
             await get().refreshFileTree(workspaceId);
         } catch (error) {
@@ -186,6 +210,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
                         ...state.files[fileId],
                         isDirty: false,
                         lastSavedAt: Date.now(),
+                        content: content,
                     },
                 },
             }));
@@ -194,6 +219,34 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         } catch (error) {
             console.error("Failed to auto-save:", error);
             // Keep isDirty = true
+            return false;
+        }
+    },
+
+    setIsRunning: (isRunning) => set({ isRunning }),
+
+    forceSaveAll: async (workspaceId) => {
+        const { files, saveFile } = get();
+        const dirtyFiles = Object.entries(files).filter(([_, state]) => state.isDirty);
+
+        if (dirtyFiles.length === 0) return true;
+
+        try {
+            // Save all dirty files concurrently
+            const results = await Promise.all(
+                dirtyFiles.map(async ([fileId, state]) => {
+                    if (state.content === undefined) {
+                        console.warn(`File ${fileId} is dirty but has no content in store. Skipping save.`);
+                        return true;
+                    }
+                    return saveFile(workspaceId, fileId, state.content);
+                })
+            );
+
+            // Return true only if ALL succeeded
+            return results.every((success) => success);
+        } catch (error) {
+            console.error("Force save failed:", error);
             return false;
         }
     },

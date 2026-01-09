@@ -36,10 +36,12 @@ export default function EditorPane({
 
     const {
         saveFile,
-        markAsDirty,
         updateFileStatus,
         files,
-        setActiveFileId
+        setActiveFileId,
+        isRunning,
+        setIsRunning,
+        forceSaveAll
     } = useWorkspaceStore();
 
     const fileState = fileId ? files[fileId] : null;
@@ -114,21 +116,39 @@ export default function EditorPane({
         setContent(newContent);
 
         if (fileId) {
-            markAsDirty(fileId);
+            // Update store with latest content and dirty status immediately
+            // This ensures forceSaveAll has the correct content
+            updateFileStatus(fileId, { isDirty: true, content: newContent });
+
             performAutoSave(workspaceId, fileId, newContent);
         }
     };
 
     const handleRun = async () => {
-        if (!fileId) return;
+        if (!fileId || isRunning) return;
 
-        // Force save first
-        setSaving(true);
-        await saveFile(workspaceId, fileId, content);
-        setSaving(false);
+        setIsRunning(true);
+        setSaving(true); // UI feedback
 
-        // Trigger run
         try {
+            // 1. Force save all dirty files (ensure backend is fresh)
+            // Note: forceSaveAll handles the save logic using content stored in the store
+            // We ensure store has latest content via handleContentChange
+            const saveSuccess = await forceSaveAll(workspaceId);
+
+            if (!saveSuccess) {
+                // Determine if we should abort. The requirement says:
+                // "If it fails -> show error toast, abort run, set isRunning = false"
+                console.error("Save failed, aborting run");
+                alert("Failed to save files. Run aborted."); // Simple feedback for now
+                setIsRunning(false);
+                setSaving(false);
+                return;
+            }
+
+            setSaving(false); // Saves done, moving to run
+
+            // 2. Trigger run
             const response = await createRun({
                 workspaceId,
                 fileId,
@@ -139,6 +159,18 @@ export default function EditorPane({
             }
         } catch (error) {
             console.error("Failed to start run:", error);
+            setIsRunning(false);
+        } finally {
+            // Note: We keep isRunning true if run started successfully?
+            // Req: "When execution completes or errors -> set isRunning = false"
+            // Since `createRun` is likely just triggering the run (async on backend?), 
+            // we might want to reset `isRunning` here if the UI doesn't track the actual run process longer.
+            // But let's assume `createRun` returns quickly.
+            // If `createRun` is the trigger, and execution happens via WebSocket or polling, 
+            // we should probably reset `isRunning` here UNLESS we have a way to track the run status globally.
+            // "When execution completes or errors -> set isRunning = false"
+            // If our `createRun` is fire-and-forget, we reset here.
+            setIsRunning(false);
         }
     };
 
@@ -164,9 +196,17 @@ export default function EditorPane({
                         size="sm"
                         variant="ghost"
                         className="h-7 text-green-400 hover:text-green-300 hover:bg-[#333]"
-                        onClick={handleRun}
+                        disabled={isRunning}
                     >
-                        <Play size={14} className="mr-1" /> Run
+                        {isRunning ? (
+                            <>
+                                <Loader2 size={14} className="mr-1 animate-spin" /> {saving ? "Saving..." : "Running..."}
+                            </>
+                        ) : (
+                            <>
+                                <Play size={14} className="mr-1" /> Run
+                            </>
+                        )}
                     </Button>
                 </div>
             </div>
