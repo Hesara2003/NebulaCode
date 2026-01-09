@@ -16,9 +16,10 @@ import { Button } from "./ui/button";
 type RunStatus =
   | "queued"
   | "running"
-  | "succeeded"
+  | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "timed_out";
 
 type RunStreamEvent =
   | { type: "stdout"; data: string }
@@ -161,7 +162,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
   const disableCancel =
     isCancelling ||
-    ["succeeded", "failed", "cancelled"].includes(status);
+    ["completed", "failed", "cancelled", "timed_out"].includes(status);
 
   /* ---------- UI ---------- */
   return (
@@ -173,11 +174,12 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
           <span
             className={cn(
               "px-2 py-1 text-xs rounded-full border",
-              status === "running" && "border-emerald-500 text-emerald-400",
-              status === "queued" && "border-amber-500 text-amber-400",
-              status === "succeeded" && "border-blue-500 text-blue-400",
+              status === "running" && "border-emerald-500 text-emerald-400 animate-pulse",
+              status === "queued" && "border-amber-500 text-amber-400 animate-pulse",
+              status === "completed" && "border-blue-500 text-blue-400",
               status === "failed" && "border-red-500 text-red-400",
-              status === "cancelled" && "border-gray-500 text-gray-300"
+              status === "cancelled" && "border-gray-500 text-gray-300",
+              status === "timed_out" && "border-orange-500 text-orange-400"
             )}
           >
             {status}
