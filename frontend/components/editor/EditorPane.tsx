@@ -12,9 +12,10 @@ import {
   type RunResponse,
   type RunStatus,
 } from "@/lib/api/run";
+import { cancelRun } from "@/lib/api/runs";
 import { downloadTextFile } from "@/lib/utils";
 import { connectRunWebSocket } from "@/lib/runWebSocket";
-import { Download, Loader2, Play, RotateCcw, Share2, Save, Check } from "lucide-react";
+import { Download, Loader2, Play, Share2, Save, Check, XCircle, CheckCircle, AlertTriangle, XOctagon, Clock } from "lucide-react";
 import { saveFile } from "@/lib/api/files";
 import { useCollaborationStore } from "@/lib/yjs";
 import { getAwareness, getDocumentText } from "@/lib/yjs/document";
@@ -62,6 +63,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [isManualStatusRefreshPending, setIsManualStatusRefreshPending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [isCancelPending, setIsCancelPending] = useState(false);
 
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
@@ -382,12 +384,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             ? "Another file is currently running"
             : undefined;
 
-  const canRerun = Boolean(
-    activeFile &&
-    activeRun &&
-    isTerminalStatus(activeRun.status) &&
-    !isAnyRunInFlight
-  );
   const canDownloadLogs = Boolean(activeRun && isTerminalStatus(activeRun.status));
 
   const handleRun = async () => {
@@ -488,6 +484,35 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       await refreshActiveRunStatuses();
     } finally {
       setIsManualStatusRefreshPending(false);
+    }
+  };
+
+  const handleCancelRun = async () => {
+    if (!activeRun || isCancelPending) return;
+
+    setIsCancelPending(true);
+    setRunError(null);
+    try {
+      await cancelRun(activeRun.runId);
+      // Update the run state to cancelled
+      setRunStates((prev) => {
+        if (!activeFile) return prev;
+        const existing = prev[activeFile.id];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [activeFile.id]: {
+            ...existing,
+            status: "cancelled",
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Failed to cancel run", error);
+      setRunError("Unable to cancel run. Please try again.");
+    } finally {
+      setIsCancelPending(false);
     }
   };
 
@@ -616,6 +641,11 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
                 </span>
               ) : null}
             </div>
+          ) : activeFile && !activeRun ? (
+            <span className="flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-gray-400 bg-gray-500/10">
+              <span className="h-2 w-2 rounded-full bg-gray-500" />
+              Ready to Run
+            </span>
           ) : null}
           <div className="flex items-center gap-2 mr-2">
             {isSaving ? (
@@ -643,21 +673,40 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
               void handleRun();
             }}
             disabled={runButtonDisabled}
-            title={runButtonTooltip}
+            title={
+              hasOtherRunInFlight && globalInFlightRun
+                ? `File "${globalInFlightRun.fileName}" is currently running. Only one run allowed at a time.`
+                : runButtonTooltip
+            }
             className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isRunRequestPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            {isRunRequestPending ? "Starting..." : "Run"}
+            {isRunRequestPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : activeRun && isTerminalStatus(activeRun.status) ? (
+              <Play size={14} />
+            ) : (
+              <Play size={14} />
+            )}
+            {isRunRequestPending
+              ? "Starting..."
+              : activeRunInFlight && activeRun?.status === "queued"
+              ? "Queued..."
+              : activeRunInFlight && activeRun?.status === "running"
+              ? "Running..."
+              : activeRun && isTerminalStatus(activeRun.status)
+              ? "Run Again"
+              : "Run"}
           </button>
-          {canRerun ? (
+          {activeRunInFlight && activeRun ? (
             <button
               type="button"
-              onClick={() => {
-                void handleRun();
-              }}
-              className="flex items-center gap-2 rounded bg-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-slate-600"
+              onClick={() => void handleCancelRun()}
+              disabled={isCancelPending}
+              className="flex items-center gap-2 rounded bg-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Cancel this run"
             >
-              <RotateCcw size={14} /> Rerun
+              {isCancelPending ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+              Cancel
             </button>
           ) : null}
           {canDownloadLogs ? (
@@ -741,13 +790,13 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   );
 };
 
-const statusStyles: Record<RunStatus, { label: string; dot: string; text: string }> = {
-  queued: { label: "Queued", dot: "bg-yellow-400", text: "text-yellow-200 bg-yellow-400/10" },
-  running: { label: "Running", dot: "bg-emerald-400", text: "text-emerald-200 bg-emerald-400/10" },
-  completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10" },
-  failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10" },
-  cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10" },
-  timed_out: { label: "Timed Out", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10" },
+const statusStyles: Record<RunStatus, { label: string; dot: string; text: string; icon?: React.ReactNode; animate?: string }> = {
+  queued: { label: "Queued", dot: "bg-yellow-400 animate-pulse", text: "text-yellow-200 bg-yellow-400/10", animate: "animate-pulse" },
+  running: { label: "Running", dot: "bg-emerald-400 animate-pulse", text: "text-emerald-200 bg-emerald-400/10", icon: <Loader2 size={12} className="animate-spin" />, animate: "animate-pulse" },
+  completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10", icon: <CheckCircle size={12} /> },
+  failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10", icon: <AlertTriangle size={12} /> },
+  cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10", icon: <XOctagon size={12} /> },
+  timed_out: { label: "Timed Out", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10", icon: <Clock size={12} /> },
   unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
 };
 
@@ -755,7 +804,11 @@ const RunStatusPill = ({ status }: { status: RunStatus }) => {
   const style = statusStyles[status] ?? statusStyles.unknown;
   return (
     <span className={`flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${style.text}`}>
-      <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
+      {style.icon ? (
+        style.icon
+      ) : (
+        <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
+      )}
       {style.label}
     </span>
   );
