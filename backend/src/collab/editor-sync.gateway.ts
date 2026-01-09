@@ -170,6 +170,8 @@ export class EditorSyncGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload?: DocumentUpdatePayload,
   ): Promise<void> {
+    this.logger.debug(`Received document:update from client ${client.id}`);
+    
     try {
       const documentId = this.ensureString(payload?.documentId);
       if (!documentId) {
@@ -187,11 +189,17 @@ export class EditorSyncGateway
         return;
       }
 
+      this.logger.debug(`Processing update for ${documentId}, size: ${update.byteLength} bytes`);
+
       const clientTimestamp = this.ensureNumber(payload?.clientTimestamp);
       const serverTimestamp = Date.now();
 
       await this.documents.applyUpdate(documentId, update);
-      client.broadcast.to(this.roomName(documentId)).emit('document:update', {
+      
+      const roomName = this.roomName(documentId);
+      this.logger.debug(`Broadcasting update for ${documentId} to room ${roomName}`);
+      
+      client.broadcast.to(roomName).emit('document:update', {
         documentId,
         update,
         actor: client.id,
@@ -311,7 +319,9 @@ export class EditorSyncGateway
   }
 
   private trackDocumentMembership(client: Socket, documentId: string): void {
-    void client.join(this.roomName(documentId));
+    const roomName = this.roomName(documentId);
+    void client.join(roomName);
+    this.logger.debug(`Client ${client.id} joined room ${roomName}`);
 
     const existingDocuments =
       this.clientDocuments.get(client.id) ?? new Set<string>();
@@ -322,6 +332,8 @@ export class EditorSyncGateway
       this.documentParticipants.get(documentId) ?? new Set<string>();
     participants.add(client.id);
     this.documentParticipants.set(documentId, participants);
+    
+    this.logger.debug(`Room ${roomName} now has ${participants.size} participants`);
   }
 
   private untrackDocumentMembership(client: Socket, documentId: string): void {
