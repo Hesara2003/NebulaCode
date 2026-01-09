@@ -34,8 +34,17 @@ export class StorageService implements OnModuleInit {
             await fs.access(workspacePath);
         } catch {
             await fs.mkdir(workspacePath, { recursive: true });
-            // Create a default file
-            await this.saveFile(workspaceId, 'src/welcome.ts', `// Welcome to NebulaCode workspace: ${workspaceId}\nconsole.log("Hello World");`);
+            // Create default files based on workspace type
+            if (workspaceId === 'demo-workspace') {
+                // Demo workspace sample files
+                await this.saveFile(workspaceId, 'welcome.ts', `// Welcome to NebulaCode!\n// This is a demo workspace.\n\nconsole.log("Hello, World!");\n\n// Try editing this file and running it!\nfunction greet(name: string) {\n  console.log(\`Hello, \${name}!\`);\n}\n\ngreet("NebulaCode");\n`);
+                await this.saveFile(workspaceId, 'server.ts', `// TypeScript Server Example\nimport * as http from 'http';\n\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, { 'Content-Type': 'text/plain' });\n  res.end('Hello from NebulaCode server!\\n');\n});\n\nconst PORT = 3000;\nserver.listen(PORT, () => {\n  console.log(\`Server running on port \${PORT}\`);\n});\n`);
+                await this.saveFile(workspaceId, 'runner.py', `#!/usr/bin/env python3\n# Python Example Script\n\ndef fibonacci(n):\n    \"\"\"Generate fibonacci sequence\"\"\"\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b\n\nprint(\"Fibonacci sequence (first 10):\")\nfor num in fibonacci(10):\n    print(num, end=\" \")\nprint()\n`);
+                await this.saveFile(workspaceId, 'README.md', `# NebulaCode Demo Workspace\n\nWelcome to NebulaCode! This is a demo workspace with sample files.\n\n## Files\n\n- **welcome.ts** - A TypeScript example\n- **server.ts** - A simple HTTP server\n- **runner.py** - A Python example\n\n## Features\n\n- 🚀 Real-time code execution\n- 💾 Persistent file storage\n- 🔄 Auto-save functionality\n- 📡 WebSocket streaming output\n\nStart by clicking \"Run\" in the editor!\n`);
+            } else {
+                // Default workspace
+                await this.saveFile(workspaceId, 'src/welcome.ts', `// Welcome to NebulaCode workspace: ${workspaceId}\nconsole.log("Hello World");`);
+            }
         }
     }
 
