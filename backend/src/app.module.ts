@@ -13,6 +13,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
 
 import { RedisModule } from './redis/redis.module';
 import { RunModule } from './run/run.module';
+import { RunsModule } from './runs/runs.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RunModule } from './run/run.module';
     WorkspacesModule,
     AuthModule,
     RunModule,
+    RunsModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],
