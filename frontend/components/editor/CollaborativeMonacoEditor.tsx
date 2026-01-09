@@ -70,69 +70,103 @@ const CollaborativeMonacoEditor = ({
         console.log(`[Editor] Left document ${documentId}`);
       };
     }
-  }, [status, documentId, joinDocument, leaveDocument]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, documentId]); // Removed joinDocument/leaveDocument to prevent re-joining
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
+    console.log("[Editor] handleEditorDidMount called, isBinding:", isBinding);
     editorRef.current = editor;
 
     if (isBinding) {
+      console.warn("[Editor] Binding already in progress, skipping");
       return;
     }
 
     setIsBinding(true);
 
-    try {
-      const model = editor.getModel();
-      if (!model) {
-        console.error("[Editor] No model available");
-        return;
-      }
-
-      // Create Monaco binding with Yjs
-      const binding = createMonacoBinding(documentId, model, editor);
-      console.log("[Editor] Monaco binding created successfully");
-
-      // Set awareness state with user info
-      if (currentUser && showPresenceCursors) {
-        const awareness = getAwareness(documentId);
-        awareness.setLocalStateField("user", {
-          name: currentUser.name,
-          color: currentUser.color,
-          initials: currentUser.initials,
-        });
-      }
-
-      // Configure undo manager
-      editor.onDidChangeCursorPosition((e) => {
-        if (showPresenceCursors && currentUser) {
-          const awareness = getAwareness(documentId);
-          awareness.setLocalStateField("cursor", {
-            position: e.position,
-            selection: editor.getSelection(),
-          });
+    // Async initialization wrapped in immediately invoked function
+    (async () => {
+      try {
+        console.log("[Editor] Starting async binding creation for:", documentId);
+        const model = editor.getModel();
+        if (!model) {
+          console.error("[Editor] No model available");
+          return;
         }
-      });
 
-      // Enable undo/redo
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
-        const doc = binding.doc;
-        doc.transact(() => {
-          // Undo is handled by MonacoBinding
-        }, "undo");
-      });
+        // Create Monaco binding with Yjs (now async)
+        const binding = await createMonacoBinding(documentId, model, editor);
+        console.log("[Editor] Monaco binding created successfully");
 
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
-        const doc = binding.doc;
-        doc.transact(() => {
-          // Redo is handled by MonacoBinding
-        }, "redo");
-      });
+        // Set awareness state with user info (y-monaco expects specific format)
+        if (currentUser && showPresenceCursors) {
+          const awareness = getAwareness(documentId);
+          awareness.setLocalStateField("user", {
+            name: currentUser.name,
+            color: currentUser.color,
+          });
+          console.log("[Editor] Awareness configured for user:", currentUser.name);
+        }
 
-    } catch (error) {
-      console.error("[Editor] Failed to create binding:", error);
-    } finally {
-      setIsBinding(false);
-    }
+        // Update cursor position in awareness when it changes
+        editor.onDidChangeCursorPosition((e) => {
+          if (showPresenceCursors && currentUser) {
+            const awareness = getAwareness(documentId);
+            const selection = editor.getSelection();
+            if (selection) {
+              awareness.setLocalStateField("selection", {
+                anchor: {
+                  line: selection.startLineNumber,
+                  ch: selection.startColumn,
+                },
+                head: {
+                  line: selection.endLineNumber,
+                  ch: selection.endColumn,
+                },
+              });
+            }
+          }
+        });
+
+        // Update selection in awareness
+        editor.onDidChangeCursorSelection((e) => {
+          if (showPresenceCursors && currentUser) {
+            const awareness = getAwareness(documentId);
+            const selection = e.selection;
+            awareness.setLocalStateField("selection", {
+              anchor: {
+                line: selection.startLineNumber,
+                ch: selection.startColumn,
+              },
+              head: {
+                line: selection.endLineNumber,
+                ch: selection.endColumn,
+              },
+            });
+          }
+        });
+
+        // Enable undo/redo
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+          const doc = binding.doc;
+          doc.transact(() => {
+            // Undo is handled by MonacoBinding
+          }, "undo");
+        });
+
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {
+          const doc = binding.doc;
+          doc.transact(() => {
+            // Redo is handled by MonacoBinding
+          }, "redo");
+        });
+
+      } catch (error) {
+        console.error("[Editor] Failed to create binding:", error);
+      } finally {
+        setIsBinding(false);
+      }
+    })();
   };
 
   const syncStatusColor = 

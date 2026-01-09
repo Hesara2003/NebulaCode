@@ -181,6 +181,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   };
 
   const handleEditorMount: OnMount = (editor) => {
+    console.log("[Editor] handleEditorMount called in EditorPane");
     editorInstanceRef.current = editor;
   };
 
@@ -199,7 +200,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       currentDocumentIdRef.current = documentId;
 
       await joinDocument(documentId);
-      initializeDocument(documentId, initialContent);
+      // Don't initialize with local content - let the server sync the document
+      // initializeDocument(documentId, initialContent);
 
       const text = getDocumentText(documentId);
 

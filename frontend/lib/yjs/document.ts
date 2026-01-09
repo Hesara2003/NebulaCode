@@ -2,13 +2,28 @@
 
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
-import { MonacoBinding } from "y-monaco";
 import type { editor } from "monaco-editor";
+
+// Dynamic import type for MonacoBinding to avoid SSR issues
+type MonacoBindingClass = typeof import("y-monaco")["MonacoBinding"];
+type MonacoBindingInstance = InstanceType<MonacoBindingClass>;
 
 const documents = new Map<string, Y.Doc>();
 const texts = new Map<string, Y.Text>();
 const awarenessMap = new Map<string, Awareness>();
-const bindings = new Map<string, MonacoBinding>();
+const bindings = new Map<string, MonacoBindingInstance>();
+let MonacoBindingConstructor: MonacoBindingClass | null = null;
+
+// Lazy load MonacoBinding only on client-side when needed
+async function getMonacoBinding(): Promise<MonacoBindingClass> {
+  if (MonacoBindingConstructor) {
+    return MonacoBindingConstructor;
+  }
+  
+  const { MonacoBinding } = await import("y-monaco");
+  MonacoBindingConstructor = MonacoBinding;
+  return MonacoBinding;
+}
 
 function getDocument(documentId: string): Y.Doc {
   let document = documents.get(documentId);
@@ -39,16 +54,23 @@ function getAwareness(documentId: string): Awareness {
   return awareness;
 }
 
-function createMonacoBinding(
+async function createMonacoBinding(
   documentId: string,
   monacoModel: editor.ITextModel,
   monacoEditor: editor.IStandaloneCodeEditor,
-): MonacoBinding {
+): Promise<MonacoBindingInstance> {
   // Clean up any existing binding
   disposeBinding(documentId);
 
   const text = getDocumentText(documentId);
   const awareness = getAwareness(documentId);
+
+  // Dynamically import MonacoBinding to avoid SSR issues
+  const MonacoBinding = await getMonacoBinding();
+
+  console.log(`[Yjs] Creating Monaco binding for document ${documentId}`);
+  console.log(`[Yjs] Text length:`, text.length);
+  console.log(`[Yjs] Model value length:`, monacoModel.getValue().length);
 
   const binding = new MonacoBinding(
     text,
@@ -60,10 +82,15 @@ function createMonacoBinding(
   bindings.set(documentId, binding);
   console.log(`[Yjs] Created Monaco binding for document ${documentId}`);
 
+  // Log when text changes
+  text.observe(() => {
+    console.log(`[Yjs] Text changed in document ${documentId}, new length:`, text.length);
+  });
+
   return binding;
 }
 
-function getBinding(documentId: string): MonacoBinding | undefined {
+function getBinding(documentId: string): MonacoBindingInstance | undefined {
   return bindings.get(documentId);
 }
 
