@@ -181,7 +181,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   };
 
   const handleEditorMount: OnMount = (editor) => {
-    console.log("[Editor] handleEditorMount called in EditorPane");
     editorInstanceRef.current = editor;
   };
 

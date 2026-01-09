@@ -360,20 +360,16 @@ const useCollaborationStore = create<CollaborationState>((set, get) => ({
       };
 
       const handleDocumentUpdate = (payload: DocumentPayload & { actor?: string }) => {
-        console.log('[Collab] Received document:update event', payload.documentId);
         const documentId = typeof payload.documentId === "string" ? payload.documentId : undefined;
         if (!documentId) {
-          console.warn('[Collab] Missing documentId in update');
           return;
         }
 
         const update = normalizeToUint8Array(payload.update);
         if (!update) {
-          console.warn('[Collab] Missing update data');
           return;
         }
 
-        console.log(`[Collab] Applying remote update for ${documentId}, size: ${update.byteLength} bytes`);
         try {
           applyUpdate(getDocument(documentId), update, "remote");
           const now = Date.now();
