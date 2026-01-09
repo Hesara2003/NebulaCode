@@ -110,9 +110,11 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
     const wsToken = resolveWsAuthToken(token);
 
-    const socket = io(resolveTerminalSocketUrl(), {
-      // Backend run streaming gateway uses Socket.IO path "/runs" (not the default "/socket.io").
-      path: "/runs",
+    const socket = io(`${resolveTerminalSocketUrl()}/runs`, {
+      // Backend gateway is namespace "runs" with Socket.IO path "/runs/socket.io".
+      // We must set the client "path" to match, otherwise Socket.IO will hit "/socket.io" and fail
+      // with "Invalid namespace".
+      path: "/runs/socket.io",
       transports: ["websocket"],
       query: { runId },
       auth: wsToken ? { token: wsToken } : undefined,
