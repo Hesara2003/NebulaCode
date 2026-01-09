@@ -17,6 +17,7 @@ import { downloadTextFile } from "@/lib/utils";
 import { connectRunWebSocket } from "@/lib/runWebSocket";
 import { Download, Loader2, Play, Share2, Save, Check, XCircle, CheckCircle, AlertTriangle, XOctagon, Clock } from "lucide-react";
 import { saveFile } from "@/lib/api/files";
+import { toast } from "@/lib/hooks/useToast";
 import { useCollaborationStore } from "@/lib/yjs";
 import { getAwareness, getDocumentText } from "@/lib/yjs/document";
 import type { OnMount } from "@monaco-editor/react";
@@ -64,6 +65,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isCancelPending, setIsCancelPending] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState<string>("");
 
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
@@ -109,6 +111,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         setActiveTabId(data.id);
         onActiveFileChange?.(data.id);
         setRunError(null);
+        setLastSavedContent(data.content ?? "");
         setOpenTabs((prev) => {
           const exists = prev.some((tab) => tab.id === data.id);
           if (exists) {
@@ -356,19 +359,19 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     return Object.values(runStates).find((run) => run && isRunActive(run.status)) ?? null;
   }, [runStates]);
 
-  const displayedRun = activeRun
-    ? activeRun
-    : globalInFlightRun && activeRun?.runId !== globalInFlightRun.runId
-      ? globalInFlightRun
-      : null;
+  const displayedRun = activeRun ?? globalInFlightRun;
 
   const activeRunInFlight = Boolean(activeRun && isRunActive(activeRun.status));
   const hasOtherRunInFlight = isAnyRunInFlight && !activeRunInFlight;
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = sharedContent !== lastSavedContent;
 
   const runButtonDisabled =
     !activeFile ||
     isLoading ||
     isRunRequestPending ||
+    isSaving ||
     activeRunInFlight ||
     hasOtherRunInFlight;
 
@@ -376,45 +379,19 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     ? "Open a file to run"
     : isLoading
       ? "File is still loading"
-      : isRunRequestPending
-        ? "Starting run"
-        : activeRunInFlight
-          ? "This file already has a run in progress"
-          : hasOtherRunInFlight
-            ? "Another file is currently running"
-            : undefined;
+      : isSaving
+        ? "Saving your changes..."
+        : isRunRequestPending
+          ? "Starting run"
+          : activeRunInFlight
+            ? "This file already has a run in progress"
+            : hasOtherRunInFlight
+              ? "Another file is currently running"
+              : hasUnsavedChanges
+                ? "Save and run code (Ctrl+Enter)"
+                : "Run code (Ctrl+Enter)";
 
   const canDownloadLogs = Boolean(activeRun && isTerminalStatus(activeRun.status));
-
-  const handleRun = async () => {
-    const fileSnapshot = activeFile;
-    if (
-      !fileSnapshot ||
-      isRunRequestPending ||
-      activeRunInFlight ||
-      hasOtherRunInFlight
-    ) {
-      return;
-    }
-
-    setRunError(null);
-    setIsRunRequestPending(true);
-    try {
-      const response = await createRun({
-        workspaceId,
-        fileId: fileSnapshot.id,
-        language: fileSnapshot.language,
-      });
-
-      upsertRunSnapshot(fileSnapshot, response);
-      dispatchTerminalClear();
-    } catch (error) {
-      console.error("Failed to start run", error);
-      setRunError("Unable to start run. Please try again.");
-    } finally {
-      setIsRunRequestPending(false);
-    }
-  };
 
   const handleDownloadLogs = async () => {
     if (!activeRun || !canDownloadLogs || logsDownloadPending) {
@@ -525,25 +502,80 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       const contentToSave = sharedContent;
       await saveFile(workspaceId, activeFile.id, contentToSave);
       setLastSavedAt(new Date());
+      setLastSavedContent(contentToSave);
     } catch (error) {
       console.error("Failed to save file", error);
       setErrorMessage("Failed to save changes. Please try again.");
+      throw error; // Re-throw to allow caller to handle
     } finally {
       setIsSaving(false);
     }
   }, [activeFile, isSaving, sharedContent, workspaceId]);
 
+  const handleRun = useCallback(async () => {
+    const fileSnapshot = activeFile;
+    if (
+      !fileSnapshot ||
+      isRunRequestPending ||
+      isSaving ||
+      activeRunInFlight ||
+      hasOtherRunInFlight
+    ) {
+      return;
+    }
+
+    setRunError(null);
+
+    try {
+      // Step 1: Auto-save if there are unsaved changes
+      if (hasUnsavedChanges) {
+        try {
+          await handleSave();
+          // Show brief success feedback
+          toast.success("Saved and running...", 2000);
+        } catch (saveError) {
+          console.error("Failed to save before run", saveError);
+          toast.error("Failed to save. Please try again.", 4000);
+          return; // Don't proceed with run if save fails
+        }
+      }
+
+      // Step 2: Execute run
+      setIsRunRequestPending(true);
+      const response = await createRun({
+        workspaceId,
+        fileId: fileSnapshot.id,
+        language: fileSnapshot.language,
+      });
+
+      upsertRunSnapshot(fileSnapshot, response);
+      dispatchTerminalClear();
+    } catch (error) {
+      console.error("Failed to start run", error);
+      setRunError("Unable to start run. Please try again.");
+      toast.error("Failed to start run. Please try again.", 4000);
+    } finally {
+      setIsRunRequestPending(false);
+    }
+  }, [activeFile, isRunRequestPending, isSaving, activeRunInFlight, hasOtherRunInFlight, hasUnsavedChanges, handleSave, workspaceId]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S / Cmd+S: Save
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         void handleSave();
+      }
+      // Ctrl+Enter / Cmd+Enter: Run (with auto-save)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void handleRun();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSave]);
+  }, [handleSave, handleRun]);
 
   useEffect(() => {
     if (!isAnyRunInFlight) {
@@ -680,14 +712,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             }
             className="flex items-center gap-2 rounded bg-green-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition enabled:hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isRunRequestPending ? (
+            {isSaving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : isRunRequestPending ? (
               <Loader2 size={14} className="animate-spin" />
             ) : activeRun && isTerminalStatus(activeRun.status) ? (
               <Play size={14} />
             ) : (
               <Play size={14} />
             )}
-            {isRunRequestPending
+            {isSaving
+              ? "Saving..."
+              : isRunRequestPending
               ? "Starting..."
               : activeRunInFlight && activeRun?.status === "queued"
               ? "Queued..."
@@ -695,6 +731,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
               ? "Running..."
               : activeRun && isTerminalStatus(activeRun.status)
               ? "Run Again"
+              : hasUnsavedChanges
+              ? "Save & Run"
               : "Run"}
           </button>
           {activeRunInFlight && activeRun ? (
