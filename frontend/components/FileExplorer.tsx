@@ -1,16 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { File, Folder, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { File, Folder, ChevronRight, ChevronDown, Loader2, Trash2, Edit2, FilePlus } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from '@/lib/store/workspace';
+import { FileNode } from '@/types/editor';
 
-interface FileNode {
-    id: string;
-    name: string;
-    type: 'file' | 'folder';
-    children?: FileNode[];
-}
+
 
 interface FileExplorerProps {
     workspaceId: string;
@@ -20,6 +16,9 @@ interface FileExplorerProps {
 
 const FileTreeItem = ({ node, depth, activeFileId, onOpenFile }: { node: FileNode; depth: number; activeFileId?: string | null; onOpenFile?: (id: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const { deleteFileAction, renameFileAction, createFileAction } = useWorkspaceStore();
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [renameValue, setRenameValue] = useState(node.name);
 
     const toggleOpen = () => {
         if (node.type === 'folder') {
@@ -29,25 +28,86 @@ const FileTreeItem = ({ node, depth, activeFileId, onOpenFile }: { node: FileNod
         }
     };
 
+    const handleRenameSubmit = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (renameValue.trim() && renameValue !== node.name) {
+            const parentPath = node.id.substring(0, node.id.lastIndexOf('/'));
+            const newId = parentPath ? `${parentPath}/${renameValue}` : renameValue;
+            // Naive ID construction. Ideally backend should handle this or we calculate carefully.
+            // Backend mock simple uses path as ID.
+            // Wait, node.id IS the path. 
+            // Let's assume ID is path for now as per simple mock.
+
+            try {
+                // Construct new path
+                const pathParts = node.id.split('/');
+                pathParts.pop();
+                pathParts.push(renameValue);
+                const newPath = pathParts.join('/');
+
+                await renameFileAction('demo-workspace', node.id, newPath);
+            } catch (e) {
+                console.error("Rename failed", e);
+                setRenameValue(node.name); // Revert
+            }
+        }
+        setIsRenaming(false);
+    };
+
     const isActive = node.id === activeFileId;
 
     return (
         <div>
             <div
                 className={cn(
-                    "flex items-center gap-1 py-1 cursor-pointer select-none transition-colors",
+                    "group flex items-center justify-between py-1 cursor-pointer select-none transition-colors pr-2",
                     isActive ? "bg-[#37373d] text-white" : "text-gray-300 hover:bg-[#2a2d2e]"
                 )}
                 style={{ paddingLeft: `${depth * 12 + 12}px` }}
                 onClick={toggleOpen}
             >
-                {node.type === 'folder' && (
-                    isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                )}
-                {node.type === 'file' && <File size={14} className="ml-4 text-blue-400" />}
-                {node.type === 'folder' && <Folder size={14} className="text-yellow-400" />}
+                <div className="flex items-center gap-1 overflow-hidden">
+                    {node.type === 'folder' && (
+                        isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                    )}
+                    {node.type === 'file' && <File size={14} className="ml-4 text-blue-400 shrink-0" />}
+                    {node.type === 'folder' && <Folder size={14} className="text-yellow-400 shrink-0" />}
 
-                <span className="text-sm ml-1">{node.name}</span>
+                    {isRenaming ? (
+                        <form onSubmit={handleRenameSubmit} onClick={e => e.stopPropagation()}>
+                            <input
+                                className="bg-black text-white text-xs p-1 border border-blue-500 outline-none w-32"
+                                value={renameValue}
+                                onChange={e => setRenameValue(e.target.value)}
+                                autoFocus
+                                onBlur={() => handleRenameSubmit()}
+                                onKeyDown={e => {
+                                    if (e.key === 'Escape') {
+                                        setRenameValue(node.name);
+                                        setIsRenaming(false);
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                    }
+                                }}
+                            />
+                        </form>
+                    ) : (
+                        <span className="text-sm ml-1 truncate">{node.name}</span>
+                    )}
+                </div>
+
+                <div className="hidden group-hover:flex items-center gap-1">
+                    <Edit2 size={12} className="text-gray-500 hover:text-white" onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRenaming(true);
+                    }} />
+                    <Trash2 size={12} className="text-gray-500 hover:text-red-400" onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm(`Delete ${node.name}?`)) {
+                            await deleteFileAction('demo-workspace', node.id);
+                        }
+                    }} />
+                </div>
             </div>
             {isOpen && node.children && (
                 <div>
@@ -67,56 +127,64 @@ const FileTreeItem = ({ node, depth, activeFileId, onOpenFile }: { node: FileNod
 };
 
 const FileExplorer = ({ workspaceId, activeFileId, onOpenFile }: FileExplorerProps) => {
-    const [files, setFiles] = useState<FileNode[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { fileTree, refreshFileTree, isLoading: loading, createFileAction } = useWorkspaceStore();
+    // We rely on global loading state, or local component loading? 
+    // Store has global `isLoading`, but maybe specific file tree loading state is better?
+    // Using store's `fileTree` which is populated by `useWorkspaceRestore` initially.
 
-    useEffect(() => {
-        const fetchFiles = async () => {
+    // We can allow manual refresh or just rely on actions.
+
+    const [isCreating, setIsCreating] = useState(false);
+    const [newFileName, setNewFileName] = useState("");
+
+    const handleCreateSubmit = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (newFileName.trim()) {
             try {
-                // Determine API URL based on environment or default
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
-                const response = await axios.get(`${baseUrl}/workspaces/${workspaceId}/files`);
-                setFiles(response.data);
-                setError(null);
-            } catch (err) {
-                console.error("Failed to fetch files:", err);
-                setError("Failed to load files");
-            } finally {
-                setLoading(false);
+                // Naive: create at root for now. Ideally select folder.
+                // Assuming path is just filename for root.
+                // If we want folders, we need to strip active folder.
+                await createFileAction(workspaceId, newFileName.trim(), "");
+                setNewFileName("");
+                setIsCreating(false);
+            } catch (error) {
+                console.error("Create failed", error);
             }
-        };
-
-        if (workspaceId) {
-            fetchFiles();
+        } else {
+            setIsCreating(false);
         }
-    }, [workspaceId]);
-
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center p-4 text-gray-500">
-                <Loader2 className="animate-spin" size={16} />
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-4 text-xs">
-                <p className="text-red-400 mb-2">{error}</p>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="text-blue-400 hover:underline"
-                >
-                    Retry
-                </button>
-            </div>
-        );
-    }
+    };
 
     return (
         <div className="flex flex-col">
-            {files.map((node) => (
+            <div className="flex justify-between px-4 py-1 text-xs text-gray-400 uppercase font-bold tracking-wider">
+                <span>Files</span>
+                <div title="New File" className="cursor-pointer hover:text-white" onClick={() => setIsCreating(true)}>
+                    <FilePlus size={14} />
+                </div>
+            </div>
+
+            {isCreating && (
+                <div className="px-4 py-1">
+                    <form onSubmit={handleCreateSubmit}>
+                        <input
+                            className="bg-black text-white text-xs p-1 border border-green-500 outline-none w-full"
+                            placeholder="filename.ext"
+                            value={newFileName}
+                            onChange={e => setNewFileName(e.target.value)}
+                            autoFocus
+                            onBlur={() => handleCreateSubmit()}
+                            onKeyDown={e => {
+                                if (e.key === 'Escape') {
+                                    setIsCreating(false);
+                                }
+                            }}
+                        />
+                    </form>
+                </div>
+            )}
+
+            {fileTree.map((node) => (
                 <FileTreeItem
                     key={node.id}
                     node={node}
@@ -125,6 +193,12 @@ const FileExplorer = ({ workspaceId, activeFileId, onOpenFile }: FileExplorerPro
                     onOpenFile={onOpenFile}
                 />
             ))}
+
+            {fileTree.length === 0 && !loading && (
+                <div className="text-gray-500 text-xs px-4 py-2 italic">
+                    No files found.
+                </div>
+            )}
         </div>
     );
 };

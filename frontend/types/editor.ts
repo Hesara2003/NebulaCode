@@ -18,3 +18,10 @@ export interface Workspace {
   activeFileId?: string;
   files?: FileEntity[];
 }
+
+export interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
+}

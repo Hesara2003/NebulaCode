@@ -51,6 +51,19 @@ export class LocalPersistence implements PersistenceStrategy {
         }
     }
 
+    async rename(oldPath: string, newPath: string): Promise<void> {
+        const fullOldPath = this.resolvePath(oldPath);
+        const fullNewPath = this.resolvePath(newPath);
+        try {
+            await fs.rename(fullOldPath, fullNewPath);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                throw new Error(`File not found: ${oldPath}`);
+            }
+            throw new InternalServerErrorException(`Failed to rename file: ${error.message}`);
+        }
+    }
+
     async list(dir: string): Promise<string[]> {
         const fullPath = this.resolvePath(dir);
         try {

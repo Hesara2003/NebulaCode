@@ -5,6 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import EditorPane from "@/components/editor/EditorPane";
 import dynamic from "next/dynamic";
+import { useWorkspaceStore } from "@/lib/store/workspace";
 
 const TerminalComponent = dynamic(() => import("@/components/TerminalComponent"), {
   ssr: false,
@@ -15,10 +16,37 @@ const TerminalComponent = dynamic(() => import("@/components/TerminalComponent")
   ),
 });
 
+import { useWorkspaceRestore } from "@/hooks/useWorkspaceRestore";
+import { Loader2 } from "lucide-react";
+
 export default function Home() {
-  const [activeFileId, setActiveFileId] = useState<string | null>("welcome-file");
+  const workspaceId = "demo-workspace";
+  const { isLoading } = useWorkspaceRestore(workspaceId);
+
+  // We rely on the store for the active file now, but for local UI state 
+  // we might still need to sync or just read from store directly in EditorPane.
+  // However, the existing code uses local state `activeFileId`. 
+  // We should probably sync this local state with the store's state.
+
+  // Actually, let's read activeFileId from store if possible, or keep local state in sync.
+  // For this step, let's keep the local state but initialize it via effect if needed, 
+  // OR better: let's modify Home to use the store's activeFileId.
+
+  // BUT `useWorkspaceRestore` sets the store. `Home` uses `useState`.
+  // Let's refactor `Home` to use the store for `activeFileId` to be consistent.
+
+  const { activeFileId, setActiveFileId } = useWorkspaceStore();
+
   const [runId, setRunId] = useState<string>("demo-run"); // Managed state
   const wsToken = process.env.NEXT_PUBLIC_WS_TOKEN ?? "devtoken";
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen bg-[#1e1e1e] flex items-center justify-center text-white">
+        <Loader2 className="animate-spin mr-2" /> Restoring workspace...
+      </div>
+    )
+  }
 
   const handleOpenFile = (fileId: string) => {
     setActiveFileId(fileId);

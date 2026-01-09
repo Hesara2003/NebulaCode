@@ -18,6 +18,12 @@ export class FilesService {
         await this.persistence.delete(path);
     }
 
+    async renameFile(workspaceId: string, oldFileId: string, newFileId: string): Promise<void> {
+        const oldPath = this.getFilePath(workspaceId, oldFileId);
+        const newPath = this.getFilePath(workspaceId, newFileId);
+        await this.persistence.rename(oldPath, newPath);
+    }
+
     async getFile(workspaceId: string, fileId: string): Promise<string> {
         const path = this.getFilePath(workspaceId, fileId);
         return await this.persistence.load(path);

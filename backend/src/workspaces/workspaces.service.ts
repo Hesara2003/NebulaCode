@@ -19,6 +19,20 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  lastActiveFile?: string;
+}
+
+const MOCK_WORKSPACES: Record<string, Workspace> = {
+  'demo-workspace': {
+    id: 'demo-workspace',
+    name: 'Demo Workspace',
+    lastActiveFile: undefined,
+  },
+};
+
 const MOCK_WORKSPACE_FILES: Record<string, WorkspaceFile[]> = {
   'demo-workspace': [
     {
@@ -68,6 +82,20 @@ const MOCK_WORKSPACE_FILES: Record<string, WorkspaceFile[]> = {
 export class WorkspacesService {
   constructor(private readonly filesService: FilesService) { }
 
+  async getWorkspace(id: string): Promise<Workspace> {
+    const workspace = MOCK_WORKSPACES[id];
+    if (!workspace) {
+      throw new NotFoundException(`Workspace ${id} not found`);
+    }
+    return workspace;
+  }
+
+  async updateWorkspace(id: string, updates: Partial<Workspace>): Promise<Workspace> {
+    const workspace = await this.getWorkspace(id);
+    MOCK_WORKSPACES[id] = { ...workspace, ...updates };
+    return MOCK_WORKSPACES[id];
+  }
+
   async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
     try {
       const content = await this.filesService.getFile(workspaceId, fileId);
@@ -116,6 +144,10 @@ export class WorkspacesService {
 
   async deleteFile(workspaceId: string, fileId: string): Promise<void> {
     await this.filesService.deleteFile(workspaceId, fileId);
+  }
+
+  async renameFile(workspaceId: string, oldFileId: string, newFileId: string): Promise<void> {
+    await this.filesService.renameFile(workspaceId, oldFileId, newFileId);
   }
 
   private buildFileTree(paths: string[]): FileNode[] {
