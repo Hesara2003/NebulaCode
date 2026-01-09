@@ -17,7 +17,7 @@ const TerminalComponent = dynamic(() => import("@/components/TerminalComponent")
 
 export default function Home() {
   const [activeFileId, setActiveFileId] = useState<string | null>("welcome-file");
-  const runId = "demo-run";
+  const [runId, setRunId] = useState<string>("demo-run"); // Managed state
   const wsToken = process.env.NEXT_PUBLIC_WS_TOKEN ?? "devtoken";
 
   const handleOpenFile = (fileId: string) => {
@@ -26,6 +26,10 @@ export default function Home() {
 
   const handleActiveFileChange = (fileId: string | null) => {
     setActiveFileId(fileId);
+  };
+
+  const handleRunStart = (newRunId: string) => {
+    setRunId(newRunId);
   };
 
   return (
@@ -43,6 +47,7 @@ export default function Home() {
             workspaceId="demo-workspace"
             fileId={activeFileId}
             onActiveFileChange={handleActiveFileChange}
+            onRunStart={handleRunStart}
           />
         </div>
 

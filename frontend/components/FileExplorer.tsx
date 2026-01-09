@@ -75,7 +75,7 @@ const FileExplorer = ({ workspaceId, activeFileId, onOpenFile }: FileExplorerPro
         const fetchFiles = async () => {
             try {
                 // Determine API URL based on environment or default
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
                 const response = await axios.get(`${baseUrl}/workspaces/${workspaceId}/files`);
                 setFiles(response.data);
                 setError(null);

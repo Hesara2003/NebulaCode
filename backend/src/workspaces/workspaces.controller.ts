@@ -11,7 +11,7 @@ export class WorkspacesController {
     return this.workspacesService.getFileTree(id);
   }
 
-  @Get(':workspaceId/files/:fileId(*)')
+  @Get(':workspaceId/files/:fileId')
   async getFile(
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,
@@ -19,7 +19,7 @@ export class WorkspacesController {
     return this.workspacesService.getFile(workspaceId, fileId);
   }
 
-  @Post(':workspaceId/files/:fileId(*)')
+  @Post(':workspaceId/files/:fileId')
   async saveFile(
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,
@@ -28,7 +28,7 @@ export class WorkspacesController {
     return this.workspacesService.saveFile(workspaceId, fileId, content);
   }
 
-  @Delete(':workspaceId/files/:fileId(*)')
+  @Delete(':workspaceId/files/:fileId')
   async deleteFile(
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,

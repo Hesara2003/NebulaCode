@@ -11,7 +11,7 @@ import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { FilesModule } from './files/files.module';
-import { RunnerModule } from './runner/runner.module';
+import { RunModule } from './run/run.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { RedisModule } from './redis/redis.module';
 
@@ -36,7 +36,8 @@ import { RedisModule } from './redis/redis.module';
     WorkspacesModule,
     AuthModule,
     FilesModule,
-    RunnerModule,
+    RunModule,
+    // RunnerModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],

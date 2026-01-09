@@ -12,11 +12,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         this.client = new Redis({
             host: this.configService.get('REDIS_HOST'),
             port: this.configService.get('REDIS_PORT'),
+            lazyConnect: true,
         });
     }
 
     onModuleDestroy() {
-        this.client.disconnect();
+        if (this.client) {
+            this.client.disconnect();
+        }
     }
 
     getClient(): Redis {

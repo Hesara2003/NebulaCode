@@ -1,0 +1,27 @@
+
+> backend@0.0.1 start
+> nest start
+
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigHostModule dependencies initialized[39m[38;5;3m +16ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mFilesModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +2ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mLoggerModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mRedisModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mWorkspacesModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 15580  - [39m01/08/2026, 10:39:30 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mRunModule dependencies initialized[39m[38;5;3m +1ms[39m
+WebSocket Gateway Initialized
+[22:39:30.830] [32mINFO[39m (15580): [36mInitializing app...[39m
+[22:39:30.842] [32mINFO[39m (15580): [36mWebsocketGateway subscribed to the "message" message[39m [90m{"context":"WebSocketsController"}[39m
+[22:39:30.842] [32mINFO[39m (15580): [36mWebsocketGateway subscribed to the "execute" message[39m [90m{"context":"WebSocketsController"}[39m
+[22:39:30.843] [32mINFO[39m (15580): [36mEditorSyncGateway subscribed to the "document:join" message[39m [90m{"context":"WebSocketsController"}[39m
+[22:39:30.843] [32mINFO[39m (15580): [36mEditorSyncGateway subscribed to the "document:update" message[39m [90m{"context":"WebSocketsController"}[39m
+[22:39:30.843] [32mINFO[39m (15580): [36mEditorSyncGateway subscribed to the "document:leave" message[39m [90m{"context":"WebSocketsController"}[39m
+[22:39:30.855] [32mINFO[39m (15580): [36mAppController {/}:[39m [90m{"context":"RoutesResolver"}[39m
+[22:39:30.858] [32mINFO[39m (15580): [36mMapped {/, GET} route[39m [90m{"context":"RouterExplorer"}[39m
+[22:39:30.858] [32mINFO[39m (15580): [36mWorkspacesController {/workspaces}:[39m [90m{"context":"RoutesResolver"}[39m
+[22:39:30.859] [32mINFO[39m (15580): [36mMapped {/workspaces/:id/files, GET} route[39m [90m{"context":"RouterExplorer"}[39m
+[22:39:30.860] [31mERROR[39m (15580): [36mUnsupported route path: "/workspaces/:workspaceId/files/:fileId(*)". In previous versions, the symbols ?, *, and + were used to denote optional or repeating path parameters. The latest version of "path-to-regexp" now requires the use of named parameters. For example, instead of using a route like /users/* to capture all routes starting with "/users", you should use /users/*path. For more details, refer to the migration guide.[39m [90m{"context":"LegacyRouteConverter"}[39m
+[22:39:30.860] [31mERROR[39m (15580): [36mFailed to bootstrap Nest application[39m [90m{"context":"Bootstrap"}[39m

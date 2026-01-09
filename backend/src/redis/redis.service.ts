@@ -13,10 +13,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: Redis | null = null;
   private readonly fallbackStore = new Map<string, string>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async onModuleInit(): Promise<void> {
-    const redisUrl = this.configService.get<string>('REDIS_URL');
+    // const redisUrl = this.configService.get<string>('REDIS_URL');
+    const redisUrl = null;
 
     if (!redisUrl) {
       this.logger.warn('REDIS_URL is not configured. Using in-memory run store.');

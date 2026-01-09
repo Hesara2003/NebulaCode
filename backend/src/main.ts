@@ -9,7 +9,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bufferLogs: true,
+    bufferLogs: false,
   });
 
   const logger = app.get(PinoLogger);
@@ -36,9 +36,10 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port =
-    configService.get<number>('PORT') ?? Number(process.env.PORT ?? 4000);
+    configService.get<number>('PORT') ?? Number(process.env.PORT ?? 4001);
 
-  await app.listen(port);
+  logger.log(`Attempting to listen on 0.0.0.0:${port}`);
+  await app.listen(port, '0.0.0.0');
   logger.log(`API listening on http://localhost:${port}`);
 }
 
