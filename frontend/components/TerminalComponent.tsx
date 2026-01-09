@@ -41,6 +41,17 @@ const resolveTerminalSocketUrl = () => {
   return (explicit ?? fallback ?? getApiBaseUrl()).replace(/\/$/, "");
 };
 
+const resolveWsAuthToken = (token?: string) => {
+  if (token) return token;
+  const fromEnv = process.env.NEXT_PUBLIC_WS_AUTH_TOKEN;
+  if (fromEnv) return fromEnv;
+
+  // Backend WsAuthGuard defaults to 'devtoken' if WS_AUTH_TOKEN is not set.
+  // Keep a dev fallback so the demo works out-of-the-box.
+  if (process.env.NODE_ENV !== "production") return "devtoken";
+  return undefined;
+};
+
 /* ---------------- COMPONENT ---------------- */
 
 const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
@@ -62,9 +73,9 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       );
     };
 
-    window.addEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
+    globalThis.addEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
     return () =>
-      window.removeEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
+      globalThis.removeEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
   }, []);
 
   /* ---------- Init Terminal + Socket ---------- */
@@ -95,12 +106,16 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       } catch {}
     };
 
-    window.addEventListener("resize", resizeHandler);
+    globalThis.addEventListener("resize", resizeHandler);
+
+    const wsToken = resolveWsAuthToken(token);
 
     const socket = io(resolveTerminalSocketUrl(), {
+      // Backend run streaming gateway uses Socket.IO path "/runs" (not the default "/socket.io").
+      path: "/runs",
       transports: ["websocket"],
       query: { runId },
-      auth: token ? { token } : undefined,
+      auth: wsToken ? { token: wsToken } : undefined,
       reconnection: true,
       reconnectionAttempts: 5,
     });
@@ -140,7 +155,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
     );
 
     return () => {
-      window.removeEventListener("resize", resizeHandler);
+      globalThis.removeEventListener("resize", resizeHandler);
       socket.disconnect();
       term.dispose();
       terminalInstanceRef.current = null;
