@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 interface EditorPaneProps {
     workspaceId: string;
     fileId: string | null;
-    onActiveFileChange: (fileId: string | null) => void;
     onRunStart?: (runId: string) => void;
 }
 
@@ -27,7 +26,6 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
 export default function EditorPane({
     workspaceId,
     fileId,
-    onActiveFileChange,
     onRunStart,
 }: EditorPaneProps) {
     const [content, setContent] = useState<string>("");
@@ -82,20 +80,30 @@ export default function EditorPane({
             return;
         }
 
-        const fetchFile = async () => {
-            setLoading(true);
-            try {
-                const file = await getFile(workspaceId, fileId);
-                setContent(file.content || "");
-            } catch (err) {
-                console.error("Failed to load file:", err);
-                setContent("// Failed to load file content");
-            } finally {
-                setLoading(false);
-            }
-        };
+        // Check if we have unsaved/restored content in store first
+        const state = useWorkspaceStore.getState();
+        const storedFile = state.files[fileId];
 
-        fetchFile();
+        if (storedFile?.isDirty && storedFile.content !== undefined) {
+            console.log("Loading restored/unsaved content for:", fileId);
+            setContent(storedFile.content);
+            setLoading(false);
+        } else {
+            const fetchFile = async () => {
+                setLoading(true);
+                try {
+                    const file = await getFile(workspaceId, fileId);
+                    setContent(file.content || "");
+                } catch (err) {
+                    console.error("Failed to load file:", err);
+                    setContent("// Failed to load file content");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            fetchFile();
+        }
 
         return () => {
             // Cleanup: If the CURRENT fileId (before switch) is dirty, save it immediately.
@@ -188,7 +196,9 @@ export default function EditorPane({
             <div className="flex items-center justify-between px-4 py-2 bg-[#1e1e1e] border-b border-[#333]">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-300">{fileId}</span>
-                    {isDirty && <span className="w-2 h-2 rounded-full bg-white block" title="Unsaved changes"></span>}
+                    {isDirty && (
+                        <span className="text-lg text-white ml-1" title="Unsaved changes">&#9679;</span>
+                    )}
                     {saving && <span className="text-xs text-gray-500 animate-pulse">Saving...</span>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -211,7 +221,7 @@ export default function EditorPane({
                 </div>
             </div>
 
-            <div className="flex-grow overflow-hidden relative">
+            <div className="grow overflow-hidden relative">
                 {loading && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#1e1e1e]/50 backdrop-blur-sm">
                         <Loader2 className="animate-spin text-white" />

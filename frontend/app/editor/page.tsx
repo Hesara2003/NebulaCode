@@ -17,11 +17,13 @@ const TerminalComponent = dynamic(() => import("@/components/TerminalComponent")
 });
 
 import { useWorkspaceRestore } from "@/hooks/useWorkspaceRestore";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { Loader2 } from "lucide-react";
 
 export default function Home() {
   const workspaceId = "demo-workspace";
   const { isLoading } = useWorkspaceRestore(workspaceId);
+  useBeforeUnload(workspaceId);
 
   // We rely on the store for the active file now, but for local UI state 
   // we might still need to sync or just read from store directly in EditorPane.

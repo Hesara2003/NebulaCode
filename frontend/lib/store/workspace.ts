@@ -215,6 +215,27 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
                 },
             }));
 
+            // Cleanup emergency snapshot for this file
+            if (typeof window !== "undefined") {
+                try {
+                    const key = `nebula_snapshot_${workspaceId}`;
+                    const snapshotStr = localStorage.getItem(key);
+                    if (snapshotStr) {
+                        const snapshots = JSON.parse(snapshotStr);
+                        if (snapshots[fileId]) {
+                            delete snapshots[fileId];
+                            if (Object.keys(snapshots).length === 0) {
+                                localStorage.removeItem(key);
+                            } else {
+                                localStorage.setItem(key, JSON.stringify(snapshots));
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Ignore localStorage errors
+                }
+            }
+
             return true;
         } catch (error) {
             console.error("Failed to auto-save:", error);
