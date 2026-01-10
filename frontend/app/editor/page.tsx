@@ -76,7 +76,6 @@ export default function Home() {
           <EditorPane
             workspaceId="demo-workspace"
             fileId={activeFileId}
-            onActiveFileChange={handleActiveFileChange}
             onRunStart={handleRunStart}
           />
         </div>

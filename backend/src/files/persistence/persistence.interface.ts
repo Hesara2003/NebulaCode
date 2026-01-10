@@ -6,4 +6,5 @@ export abstract class PersistenceStrategy {
     abstract delete(path: string): Promise<void>;
     abstract rename(oldPath: string, newPath: string): Promise<void>;
     abstract list(dir: string): Promise<string[]>;
+    abstract getStream(path: string): Promise<NodeJS.ReadableStream>;
 }

@@ -146,6 +146,33 @@ export class WorkspacesService {
     await this.filesService.deleteFile(workspaceId, fileId);
   }
 
+  async getFileStream(workspaceId: string, fileId: string): Promise<NodeJS.ReadableStream> {
+    return this.filesService.getFileStream(workspaceId, fileId);
+  }
+
+  async exportWorkspace(workspaceId: string): Promise<NodeJS.ReadableStream> {
+    const archiver = require('archiver');
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    // Get all files
+    const filePaths = await this.filesService.getFiles(workspaceId);
+
+    for (const filePath of filePaths) {
+      // Stream each file into the archive
+      // Note: filePath is relative to workspace root (e.g. "src/main.ts")
+      // We need to resolve the stream correctly
+      try {
+        const stream = await this.filesService.getFileStream(workspaceId, filePath);
+        archive.append(stream, { name: filePath });
+      } catch (e) {
+        console.warn(`Failed to archive file ${filePath}:`, e);
+      }
+    }
+
+    archive.finalize();
+    return archive;
+  }
+
   async renameFile(workspaceId: string, oldFileId: string, newFileId: string): Promise<void> {
     await this.filesService.renameFile(workspaceId, oldFileId, newFileId);
   }

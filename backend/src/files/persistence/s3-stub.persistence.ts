@@ -46,4 +46,13 @@ export class S3StubPersistence implements PersistenceStrategy {
         this.storage.set(newPath, content);
         this.storage.delete(oldPath);
     }
+
+    async getStream(path: string): Promise<NodeJS.ReadableStream> {
+        const content = this.storage.get(path);
+        if (!content) {
+            throw new Error(`File not found in S3 Stub: ${path}`);
+        }
+        const { Readable } = require('stream');
+        return Readable.from([content]);
+    }
 }

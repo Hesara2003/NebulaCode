@@ -28,3 +28,11 @@ export const saveFile = async (
     content,
   });
 };
+
+export const downloadFile = (workspaceId: string, fileId: string) => {
+  window.open(`http://localhost:4001/workspaces/${workspaceId}/files/${encodeURIComponent(fileId)}/download`, '_blank');
+};
+
+export const exportWorkspace = (workspaceId: string) => {
+  window.open(`http://localhost:4001/workspaces/${workspaceId}/export`, '_blank');
+};

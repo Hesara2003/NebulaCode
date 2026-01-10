@@ -87,4 +87,18 @@ export class LocalPersistence implements PersistenceStrategy {
         const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
         return path.join(this.storageRoot, safePath);
     }
+
+    async getStream(filePath: string): Promise<NodeJS.ReadableStream> {
+        const fullPath = this.resolvePath(filePath);
+        try {
+            await fs.access(fullPath);
+            // using native fs (not promises) for createReadStream
+            return require('fs').createReadStream(fullPath);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                throw new Error(`File not found: ${filePath}`);
+            }
+            throw new InternalServerErrorException(`Failed to stream file: ${error.message}`);
+        }
+    }
 }

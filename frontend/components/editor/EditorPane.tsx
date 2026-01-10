@@ -218,6 +218,18 @@ export default function EditorPane({
                             </>
                         )}
                     </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-blue-400 hover:text-blue-300 hover:bg-[#333]"
+                        onClick={() => {
+                            if (fileId) {
+                                import("@/lib/api/files").then(mod => mod.downloadFile(workspaceId, fileId));
+                            }
+                        }}
+                    >
+                        Download
+                    </Button>
                 </div>
             </div>
 
@@ -242,6 +254,6 @@ export default function EditorPane({
                     }}
                 />
             </div>
-        </div>
+        </div >
     );
 }

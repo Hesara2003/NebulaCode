@@ -33,6 +33,11 @@ export class FilesService {
         return await this.persistence.list(workspaceId);
     }
 
+    async getFileStream(workspaceId: string, fileId: string): Promise<NodeJS.ReadableStream> {
+        const path = this.getFilePath(workspaceId, fileId);
+        return await this.persistence.getStream(path);
+    }
+
     async saveLog(runId: string, content: string): Promise<void> {
         const path = `logs/${runId}.log`;
         await this.s3Persistence.save(path, content);

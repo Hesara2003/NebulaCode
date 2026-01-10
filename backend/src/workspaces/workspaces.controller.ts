@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Delete, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, Patch, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { WorkspacesService } from './workspaces.service';
 import type { WorkspaceFile, FileNode, Workspace } from './workspaces.service';
 
@@ -56,5 +57,33 @@ export class WorkspacesController {
     @Body('newFileId') newFileId: string,
   ): Promise<void> {
     return this.workspacesService.renameFile(workspaceId, oldFileId, newFileId);
+  }
+
+  @Get(':workspaceId/files/:fileId/download')
+  async downloadFile(
+    @Param('workspaceId') workspaceId: string,
+    @Param('fileId') fileId: string,
+    @Res() res: Response,
+  ) {
+    const stream = await this.workspacesService.getFileStream(workspaceId, fileId);
+    const filename = fileId.split('/').pop() || 'file';
+    res.set({
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    stream.pipe(res);
+  }
+
+  @Get(':workspaceId/export')
+  async exportWorkspace(
+    @Param('workspaceId') workspaceId: string,
+    @Res() res: Response,
+  ) {
+    const stream = await this.workspacesService.exportWorkspace(workspaceId);
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${workspaceId}.zip"`,
+    });
+    stream.pipe(res);
   }
 }

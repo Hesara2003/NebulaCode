@@ -37,6 +37,7 @@ interface WorkspaceState {
     isRunning: boolean;
     setIsRunning: (isRunning: boolean) => void;
     forceSaveAll: (workspaceId: string) => Promise<boolean>;
+    exportWorkspaceAction: (workspaceId: string) => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -271,4 +272,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             return false;
         }
     },
+
+    exportWorkspaceAction: async (workspaceId: string) => {
+        // 1. Force save all
+        const saved = await get().forceSaveAll(workspaceId);
+        if (!saved) {
+            alert("Some files could not be saved. Exporting anyway, but content may be outdated.");
+        }
+
+        // 2. Trigger download
+        // We use the direct API URL approach or the api helper
+        import("@/lib/api/files").then(mod => mod.exportWorkspace(workspaceId));
+    }
 }));
