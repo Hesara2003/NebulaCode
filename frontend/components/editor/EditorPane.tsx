@@ -22,6 +22,14 @@ import { useCollaborationStore } from "@/lib/yjs";
 import { getAwareness, getDocumentText } from "@/lib/yjs/document";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditorNS } from "monaco-editor";
+import {
+  getStoredRunState,
+  storeRunId,
+  clearStoredRunState,
+  clearStaleRunStates,
+  isRunStateStale,
+  updateStoredRunStatus,
+} from "@/lib/runStateStorage";
 
 type MonacoBindingClass = typeof import("y-monaco")["MonacoBinding"];
 type MonacoBindingInstance = InstanceType<MonacoBindingClass>;
@@ -66,6 +74,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isCancelPending, setIsCancelPending] = useState(false);
   const [lastSavedContent, setLastSavedContent] = useState<string>("");
+  const [isRestoringRun, setIsRestoringRun] = useState(false);
 
   const pendingFileIdRef = useRef<string | null>(fileId);
   const isMountedRef = useRef(true);
@@ -83,6 +92,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const currentUser = useCollaborationStore((state) => state.currentUser);
 
   useEffect(() => {
+    // Clean up stale run states on initial mount
+    clearStaleRunStates();
+
     return () => {
       isMountedRef.current = false;
     };
@@ -149,6 +161,65 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
     void openFile(fileId);
   }, [fileId, openFile]);
+
+  // Restore run state after file is loaded
+  useEffect(() => {
+    if (!activeFile || isLoading) return;
+
+    const restoreRunState = async () => {
+      setIsRestoringRun(true);
+      try {
+        const storedState = getStoredRunState(activeFile.id);
+
+        if (!storedState) {
+          setIsRestoringRun(false);
+          return;
+        }
+
+        // Check if the stored run is stale
+        if (isRunStateStale(storedState)) {
+          clearStoredRunState(activeFile.id);
+          setIsRestoringRun(false);
+          return;
+        }
+
+        // Fetch current status from backend
+        const runStatus = await getRunStatus(storedState.runId);
+
+        // Restore run state
+        upsertRunSnapshot(activeFile, runStatus);
+
+        // Update stored status
+        updateStoredRunStatus(activeFile.id, runStatus.status);
+
+        // Show appropriate toast based on status
+        if (isRunActive(runStatus.status)) {
+          toast.info("Run in progress restored", 2000);
+        } else if (runStatus.status === "completed") {
+          toast.success("Last run completed successfully", 2000);
+        } else if (runStatus.status === "failed") {
+          toast.warning("Last run failed", 3000);
+        } else if (runStatus.status === "cancelled") {
+          toast.info("Run was cancelled", 2000);
+        } else if (runStatus.status === "timed_out") {
+          toast.warning("Run exceeded time limit", 3000);
+        }
+      } catch (error) {
+        console.error("Failed to restore run state", error);
+        // Silently fail - clear stored state and show fresh UI
+        clearStoredRunState(activeFile.id);
+      } finally {
+        setIsRestoringRun(false);
+      }
+    };
+
+    // Small delay to avoid flash of loading state
+    const timer = setTimeout(() => {
+      void restoreRunState();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeFile, isLoading]);
 
   const handleSelectTab = (tabId: string) => {
     if (tabId === activeTabId) return;
@@ -442,6 +513,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             createdAt: update.data.createdAt,
             updatedAt: update.data.updatedAt,
           };
+
+          // Update status in localStorage
+          updateStoredRunStatus(update.fileKey, update.data.status);
         }
         return next;
       });
@@ -476,6 +550,10 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         if (!activeFile) return prev;
         const existing = prev[activeFile.id];
         if (!existing) return prev;
+
+        // Update status in localStorage
+        updateStoredRunStatus(activeFile.id, "cancelled");
+
         return {
           ...prev,
           [activeFile.id]: {
@@ -548,6 +626,15 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         language: fileSnapshot.language,
       });
 
+      // Store runId in localStorage for restoration after refresh
+      storeRunId(
+        fileSnapshot.id,
+        response.runId,
+        fileSnapshot.name ?? fileSnapshot.path ?? fileSnapshot.id,
+        response.createdAt,
+        response.status
+      );
+
       upsertRunSnapshot(fileSnapshot, response);
       dispatchTerminalClear();
     } catch (error) {
@@ -606,13 +693,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       onStatus: (payload) => {
         setRunStates((prev) => {
           const existing = prev[currentRun.fileId];
+          const newStatus = (payload.status as RunStatus) ?? existing?.status ?? "unknown";
+
+          // Update status in localStorage
+          updateStoredRunStatus(currentRun.fileId, newStatus);
+
           return {
             ...prev,
             [currentRun.fileId]: {
               fileId: currentRun.fileId,
               fileName: existing?.fileName ?? currentRun.fileName,
               runId: currentRun.runId,
-              status: (payload.status as RunStatus) ?? existing?.status ?? "unknown",
+              status: newStatus,
               createdAt: existing?.createdAt,
               updatedAt: payload.updatedAt ?? new Date().toISOString(),
             },
@@ -680,7 +772,11 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             </span>
           ) : null}
           <div className="flex items-center gap-2 mr-2">
-            {isSaving ? (
+            {isRestoringRun ? (
+              <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-blue-400">
+                <Loader2 size={10} className="animate-spin" /> Restoring...
+              </span>
+            ) : isSaving ? (
               <span className="flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-400">
                 <Loader2 size={10} className="animate-spin" /> Saving...
               </span>
