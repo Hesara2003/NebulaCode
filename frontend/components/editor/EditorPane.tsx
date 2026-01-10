@@ -48,6 +48,11 @@ interface RunSnapshot {
   status: RunStatus;
   fileId: string;
   fileName: string;
+  initiatedBy?: {
+    id: string;
+    name: string;
+  };
+  snapshotCreatedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -161,65 +166,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
     void openFile(fileId);
   }, [fileId, openFile]);
-
-  // Restore run state after file is loaded
-  useEffect(() => {
-    if (!activeFile || isLoading) return;
-
-    const restoreRunState = async () => {
-      setIsRestoringRun(true);
-      try {
-        const storedState = getStoredRunState(activeFile.id);
-
-        if (!storedState) {
-          setIsRestoringRun(false);
-          return;
-        }
-
-        // Check if the stored run is stale
-        if (isRunStateStale(storedState)) {
-          clearStoredRunState(activeFile.id);
-          setIsRestoringRun(false);
-          return;
-        }
-
-        // Fetch current status from backend
-        const runStatus = await getRunStatus(storedState.runId);
-
-        // Restore run state
-        upsertRunSnapshot(activeFile, runStatus);
-
-        // Update stored status
-        updateStoredRunStatus(activeFile.id, runStatus.status);
-
-        // Show appropriate toast based on status
-        if (isRunActive(runStatus.status)) {
-          toast.info("Run in progress restored", 2000);
-        } else if (runStatus.status === "completed") {
-          toast.success("Last run completed successfully", 2000);
-        } else if (runStatus.status === "failed") {
-          toast.warning("Last run failed", 3000);
-        } else if (runStatus.status === "cancelled") {
-          toast.info("Run was cancelled", 2000);
-        } else if (runStatus.status === "timed_out") {
-          toast.warning("Run exceeded time limit", 3000);
-        }
-      } catch (error) {
-        console.error("Failed to restore run state", error);
-        // Silently fail - clear stored state and show fresh UI
-        clearStoredRunState(activeFile.id);
-      } finally {
-        setIsRestoringRun(false);
-      }
-    };
-
-    // Small delay to avoid flash of loading state
-    const timer = setTimeout(() => {
-      void restoreRunState();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [activeFile, isLoading]);
 
   const handleSelectTab = (tabId: string) => {
     if (tabId === activeTabId) return;
@@ -398,7 +344,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     };
   }, [lastRemoteUpdate, clearRemoteUpdate]);
 
-  const upsertRunSnapshot = (file: FileEntity, response: RunResponse) => {
+  const upsertRunSnapshot = useCallback((file: FileEntity, response: RunResponse) => {
     setRunStates((prev) => ({
       ...prev,
       [file.id]: {
@@ -406,11 +352,16 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         status: response.status,
         fileId: file.id,
         fileName: file.name ?? file.path ?? file.id,
+        initiatedBy: currentUser ? {
+          id: currentUser.id,
+          name: currentUser.name,
+        } : undefined,
+        snapshotCreatedAt: response.createdAt,
         createdAt: response.createdAt,
         updatedAt: response.updatedAt,
       },
     }));
-  };
+  }, [currentUser]);
 
   const dispatchTerminalClear = () => {
     if (typeof window === "undefined") {
@@ -438,6 +389,36 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   // Check if there are unsaved changes
   const hasUnsavedChanges = sharedContent !== lastSavedContent;
 
+  // Check if content has changed since run snapshot was created
+  const hasChangedSinceRunStart = useMemo(() => {
+    if (!activeRun || !activeRun.snapshotCreatedAt) return false;
+
+    // If lastSavedAt is after snapshot creation, content has changed
+    if (lastSavedAt && new Date(lastSavedAt) > new Date(activeRun.snapshotCreatedAt)) {
+      return true;
+    }
+
+    // If there are unsaved changes, content has definitely changed
+    return hasUnsavedChanges;
+  }, [activeRun, lastSavedAt, hasUnsavedChanges]);
+
+  // Check if current user started the run
+  const isCurrentUserRun = useMemo(() => {
+    if (!activeRun || !activeRun.initiatedBy || !currentUser) return false;
+    return activeRun.initiatedBy.id === currentUser.id;
+  }, [activeRun, currentUser]);
+
+  // Get run attribution text
+  const getRunAttribution = useCallback((run: RunSnapshot | null) => {
+    if (!run || !run.initiatedBy) return null;
+
+    if (currentUser && run.initiatedBy.id === currentUser.id) {
+      return "you";
+    }
+
+    return run.initiatedBy.name;
+  }, [currentUser]);
+
   const runButtonDisabled =
     !activeFile ||
     isLoading ||
@@ -455,7 +436,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         : isRunRequestPending
           ? "Starting run"
           : activeRunInFlight
-            ? "This file already has a run in progress"
+            ? isCurrentUserRun
+              ? "Your run is in progress"
+              : `Run in progress (started by ${getRunAttribution(activeRun)})`
             : hasOtherRunInFlight
               ? "Another file is currently running"
               : hasUnsavedChanges
@@ -463,6 +446,67 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
                 : "Run code (Ctrl+Enter)";
 
   const canDownloadLogs = Boolean(activeRun && isTerminalStatus(activeRun.status));
+
+  // Restore run state after file is loaded
+  useEffect(() => {
+    if (!activeFile || isLoading) return;
+
+    const restoreRunState = async () => {
+      setIsRestoringRun(true);
+      try {
+        const storedState = getStoredRunState(activeFile.id);
+
+        if (!storedState) {
+          setIsRestoringRun(false);
+          return;
+        }
+
+        // Check if the stored run is stale
+        if (isRunStateStale(storedState)) {
+          clearStoredRunState(activeFile.id);
+          setIsRestoringRun(false);
+          return;
+        }
+
+        // Fetch current status from backend
+        const runStatus = await getRunStatus(storedState.runId);
+
+        // Restore run state
+        upsertRunSnapshot(activeFile, runStatus);
+
+        // Update stored status
+        updateStoredRunStatus(activeFile.id, runStatus.status);
+
+        // Show appropriate toast based on status
+        // Note: For now, we show simple messages. When backend adds initiatedBy to RunResponse,
+        // we can enhance these with attribution
+        if (isRunActive(runStatus.status)) {
+          toast.info("Run in progress restored", 2000);
+        } else if (runStatus.status === "completed") {
+          toast.success("Last run completed successfully", 2000);
+        } else if (runStatus.status === "failed") {
+          toast.warning("Last run failed", 3000);
+        } else if (runStatus.status === "cancelled") {
+          toast.info("Run was cancelled", 2000);
+        } else if (runStatus.status === "timed_out") {
+          toast.warning("Run exceeded time limit", 3000);
+        }
+      } catch (error) {
+        console.error("Failed to restore run state", error);
+        // Silently fail - clear stored state and show fresh UI
+        clearStoredRunState(activeFile.id);
+      } finally {
+        setIsRestoringRun(false);
+      }
+    };
+
+    // Small delay to avoid flash of loading state
+    const timer = setTimeout(() => {
+      void restoreRunState();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeFile, isLoading, currentUser, upsertRunSnapshot]);
 
   const handleDownloadLogs = async () => {
     if (!activeRun || !canDownloadLogs || logsDownloadPending) {
@@ -758,7 +802,10 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         <div className="hidden items-center gap-3 px-4 sm:flex">
           {displayedRun ? (
             <div className="flex items-center gap-2">
-              <RunStatusPill status={displayedRun.status} />
+              <RunStatusPill
+                status={displayedRun.status}
+                attribution={getRunAttribution(displayedRun)}
+              />
               {!activeRun && displayedRun.fileName ? (
                 <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-gray-300">
                   {displayedRun.fileName}
@@ -887,6 +934,15 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         </div>
       ) : null}
 
+      {activeRunInFlight && hasChangedSinceRunStart ? (
+        <div className="flex items-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 text-xs text-amber-200">
+          <AlertTriangle size={12} />
+          <span>
+            Running saved version{getRunAttribution(activeRun) ? ` (started by ${getRunAttribution(activeRun)})` : ""}. Changes won&apos;t affect this run.
+          </span>
+        </div>
+      ) : null}
+
       <div className="relative flex-1">
         {isLoading ? (
           <output className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/60 text-xs uppercase tracking-[0.3em] text-gray-100" aria-live="polite">
@@ -934,7 +990,7 @@ const statusStyles: Record<RunStatus, { label: string; dot: string; text: string
   unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
 };
 
-const RunStatusPill = ({ status }: { status: RunStatus }) => {
+const RunStatusPill = ({ status, attribution }: { status: RunStatus; attribution?: string | null }) => {
   const style = statusStyles[status] ?? statusStyles.unknown;
   return (
     <span className={`flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${style.text}`}>
@@ -944,6 +1000,7 @@ const RunStatusPill = ({ status }: { status: RunStatus }) => {
         <span className={`h-2 w-2 rounded-full ${style.dot}`} aria-hidden="true" />
       )}
       {style.label}
+      {attribution && <span className="opacity-75">({attribution})</span>}
     </span>
   );
 };
