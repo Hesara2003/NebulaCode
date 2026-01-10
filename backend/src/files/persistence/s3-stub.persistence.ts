@@ -37,13 +37,13 @@ export class S3StubPersistence implements PersistenceStrategy {
         return Array.from(this.storage.keys()).filter(key => key.startsWith(dir));
     }
 
-        async rename(oldPath: string, newPath: string): Promise<void> {
-            this.logger.log(`[S3 Stub] Renaming from ${oldPath} to ${newPath}`);
-            if (!this.storage.has(oldPath)) {
-                throw new Error(`File not found in S3 Stub: ${oldPath}`);
-            }
-            const content = this.storage.get(oldPath)!;
-            this.storage.set(newPath, content);
-            this.storage.delete(oldPath);
+    async rename(oldPath: string, newPath: string): Promise<void> {
+        this.logger.log(`[S3 Stub] Renaming from ${oldPath} to ${newPath}`);
+        if (!this.storage.has(oldPath)) {
+            throw new Error(`File not found in S3 Stub: ${oldPath}`);
         }
+        const content = this.storage.get(oldPath)!;
+        this.storage.set(newPath, content);
+        this.storage.delete(oldPath);
+    }
 }
