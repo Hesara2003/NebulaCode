@@ -6,9 +6,18 @@ import type { PresenceUser } from "./store";
 import { getApiBaseUrl } from "../api/httpClient";
 
 const resolveSocketBaseUrl = () => {
+  // Use explicit environment variables if set
   const explicitCollabUrl = process.env.NEXT_PUBLIC_COLLAB_SOCKET_URL;
   const fallbackSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-  const baseUrl = explicitCollabUrl ?? fallbackSocketUrl ?? getApiBaseUrl();
+
+  // Determine base URL:
+  // - Server-side (Node inside Docker): use backend container name
+  // - Client-side (browser): use NEXT_PUBLIC_API_URL or fallback
+  const baseUrl =
+    typeof window === "undefined"
+      ? "http://backend:4000" // server-side inside Docker
+      : explicitCollabUrl ?? fallbackSocketUrl ?? getApiBaseUrl();
+
   return baseUrl.replace(/\/$/, "");
 };
 

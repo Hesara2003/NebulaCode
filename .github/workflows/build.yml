@@ -5,10 +5,13 @@ on:
     branches:
       - main
       - Dev
+      -week02-devops
+
   pull_request:
     branches:
       - main
       - Dev
+      -week02-devops
 
 jobs:
   # Frontend Build Job

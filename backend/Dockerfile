@@ -35,6 +35,8 @@ RUN npm install --production
 
 COPY --from=builder /app/dist ./dist
 
+COPY --from=builder /app/workspaces-data ./workspaces-data
+
 # Set environment variables (optional, can be set in Render dashboard)
 
 ENV NODE_ENV=production

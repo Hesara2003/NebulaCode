@@ -356,6 +356,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
   const displayedRun = activeRun || globalInFlightRun;
 
+
   const activeRunInFlight = Boolean(activeRun && isRunActive(activeRun.status));
   const hasOtherRunInFlight = isAnyRunInFlight && !activeRunInFlight;
 

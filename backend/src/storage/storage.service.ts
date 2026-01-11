@@ -35,7 +35,7 @@ export class StorageService implements OnModuleInit {
         } catch {
             await fs.mkdir(workspacePath, { recursive: true });
             // Create a default file
-            await this.saveFile(workspaceId, 'src/welcome.ts', `// Welcome to NebulaCode workspace: ${workspaceId}\nconsole.log("Hello World");`);
+            await this.saveFile(workspaceId, 'welcome-file', `// Welcome to NebulaCode workspace: ${workspaceId}\nconsole.log("Hello World");`);
         }
     }
 

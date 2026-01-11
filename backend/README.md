@@ -109,7 +109,7 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
 ```bash
 npm run start:dev
-curl http://localhost:4000/workspaces/demo-workspace/files/welcome-file | jq
+curl http://localhost:4000/workspaces/demo-workspace/files/-file | jq
 ```
 
 You should see the demo TypeScript file payload in the response and a corresponding `[HTTP] GET ... 200` log entry in the server console.

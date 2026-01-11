@@ -9,7 +9,7 @@ export class RunnerController {
   @Post('spawn')
   async run() {
     const runId = randomUUID();
-    await this.runnerService.spawn('nebula-runner:week2', runId);
+    await this.runnerService.spawn('ghcr.io/hesara2003/nebula-runner:latest', runId);
     return { runId, status: 'running' };
   }
 }

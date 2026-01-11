@@ -7,7 +7,7 @@ export class RunnerService {
     const container = await docker.createContainer({
       Image: image,
       User: 'runner',
-      Cmd: ['timeout', '10s', 'node', 'index.js'],
+      Cmd: ['timeout', '10s', 'node', 'src/index.js'],
       Labels: { runId },
       HostConfig: {
         AutoRemove: true,
@@ -19,5 +19,10 @@ export class RunnerService {
 
     await container.start();
     return container;
+
+  }
+  catch (err) {
+    console.error('Failed to spawn container:', err);
+    throw err;
   }
 }

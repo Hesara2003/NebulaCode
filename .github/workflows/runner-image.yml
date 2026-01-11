@@ -1,0 +1,32 @@
+name: Build & Push Runner Image
+
+on:
+  push:
+    paths:
+      - "runner/**"
+      - ".github/workflows/runner-image.yml"
+
+jobs:
+  build-runner:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build runner image
+        run: |
+          docker build \
+            -t ghcr.io/${{ github.repository_owner | toLower }}/nebula-runner:latest \
+            ./runner
+
+      - name: Push runner image
+        run: |
+          docker push ghcr.io/${{ github.repository_owner | toLower }}/nebula-runner:latest
