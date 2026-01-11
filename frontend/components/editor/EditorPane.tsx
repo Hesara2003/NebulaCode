@@ -485,11 +485,11 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         } else if (runStatus.status === "completed") {
           toast.success("Last run completed successfully", 2000);
         } else if (runStatus.status === "failed") {
-          toast.warning("Last run failed", 3000);
+          toast.warning("Last run ended with errors", 3000);
         } else if (runStatus.status === "cancelled") {
           toast.info("Run was cancelled", 2000);
         } else if (runStatus.status === "timed_out") {
-          toast.warning("Run exceeded time limit", 3000);
+          toast.warning("Run took too long and was stopped", 3000);
         }
       } catch (error) {
         console.error("Failed to restore run state", error);
@@ -521,7 +521,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       downloadTextFile(filename, payload.content);
     } catch (error) {
       console.error("Failed to download logs", error);
-      setRunError("Unable to download logs right now. Please try again.");
+      setRunError("Couldn't download logs. Check your connection and try again.");
     } finally {
       setLogsDownloadPending(false);
     }
@@ -566,7 +566,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setPollingError(null);
     } catch (error) {
       console.error("Failed to refresh run status", error);
-      setPollingError("Unable to refresh run status. Retrying automatically.");
+      setPollingError("Couldn't refresh run status. Retrying automatically.");
     }
   }, []);
 
@@ -609,7 +609,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       });
     } catch (error) {
       console.error("Failed to cancel run", error);
-      setRunError("Unable to cancel run. Please try again.");
+      setRunError("Couldn't cancel run. Try again in a moment.");
     } finally {
       setIsCancelPending(false);
     }
@@ -627,7 +627,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       setLastSavedContent(contentToSave);
     } catch (error) {
       console.error("Failed to save file", error);
-      setErrorMessage("Failed to save changes. Please try again.");
+      setErrorMessage("Couldn't save your changes. Check your connection and try again.");
       throw error; // Re-throw to allow caller to handle
     } finally {
       setIsSaving(false);
@@ -657,7 +657,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
           toast.success("Saved and running...", 2000);
         } catch (saveError) {
           console.error("Failed to save before run", saveError);
-          toast.error("Failed to save. Please try again.", 4000);
+          toast.error("Couldn't save your changes. Check your connection and try again.", 4000);
           return; // Don't proceed with run if save fails
         }
       }
@@ -683,8 +683,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
       dispatchTerminalClear();
     } catch (error) {
       console.error("Failed to start run", error);
-      setRunError("Unable to start run. Please try again.");
-      toast.error("Failed to start run. Please try again.", 4000);
+      setRunError("Couldn't start run. Try again or check the terminal for details.");
+      toast.error("Couldn't start run. Try again or check the terminal for details.", 4000);
     } finally {
       setIsRunRequestPending(false);
     }
@@ -865,13 +865,13 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
               <Play size={14} />
             )}
             {isSaving
-              ? "Saving..."
+              ? "Saving"
               : isRunRequestPending
-              ? "Starting..."
+              ? "Starting run"
               : activeRunInFlight && activeRun?.status === "queued"
-              ? "Queued..."
+              ? "Queued"
               : activeRunInFlight && activeRun?.status === "running"
-              ? "Running..."
+              ? "Running"
               : activeRun && isTerminalStatus(activeRun.status)
               ? "Run Again"
               : hasUnsavedChanges
@@ -938,7 +938,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         <div className="flex items-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 text-xs text-amber-200">
           <AlertTriangle size={12} />
           <span>
-            Running saved version{getRunAttribution(activeRun) ? ` (started by ${getRunAttribution(activeRun)})` : ""}. Changes won&apos;t affect this run.
+            Running saved version{getRunAttribution(activeRun) ? ` (started by ${getRunAttribution(activeRun)})` : ""}. Your changes won&apos;t affect this run.
           </span>
         </div>
       ) : null}
@@ -984,10 +984,10 @@ const statusStyles: Record<RunStatus, { label: string; dot: string; text: string
   queued: { label: "Queued", dot: "bg-yellow-400 animate-pulse", text: "text-yellow-200 bg-yellow-400/10", animate: "animate-pulse" },
   running: { label: "Running", dot: "bg-emerald-400 animate-pulse", text: "text-emerald-200 bg-emerald-400/10", icon: <Loader2 size={12} className="animate-spin" />, animate: "animate-pulse" },
   completed: { label: "Completed", dot: "bg-sky-400", text: "text-sky-100 bg-sky-500/10", icon: <CheckCircle size={12} /> },
-  failed: { label: "Failed", dot: "bg-red-400", text: "text-red-200 bg-red-500/10", icon: <AlertTriangle size={12} /> },
+  failed: { label: "Ended with errors", dot: "bg-red-400", text: "text-red-200 bg-red-500/10", icon: <AlertTriangle size={12} /> },
   cancelled: { label: "Cancelled", dot: "bg-gray-400", text: "text-gray-200 bg-gray-500/10", icon: <XOctagon size={12} /> },
-  timed_out: { label: "Timed Out", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10", icon: <Clock size={12} /> },
-  unknown: { label: "Unknown", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
+  timed_out: { label: "Took too long", dot: "bg-orange-400", text: "text-orange-200 bg-orange-500/10", icon: <Clock size={12} /> },
+  unknown: { label: "Status unavailable", dot: "bg-purple-400", text: "text-purple-100 bg-purple-500/10" },
 };
 
 const RunStatusPill = ({ status, attribution }: { status: RunStatus; attribution?: string | null }) => {
