@@ -9,10 +9,10 @@ interface SidebarProps {
 }
 
 const explorerFiles = [
-  { id: "welcome-file", label: "welcome.ts", accent: "text-yellow-400" },
-  { id: "api-file", label: "server.ts", accent: "text-red-400" },
-  { id: "python-file", label: "runner.py", accent: "text-green-400" },
-  { id: "readme-file", label: "README.md", accent: "text-blue-400" },
+  { id: "welcome.ts", label: "welcome.ts", accent: "text-yellow-400" },
+  { id: "server.ts", label: "server.ts", accent: "text-red-400" },
+  { id: "runner.py", label: "runner.py", accent: "text-green-400" },
+  { id: "README.md", label: "README.md", accent: "text-blue-400" },
 ];
 
 const Sidebar = ({ activeFileId, onOpenFile }: SidebarProps) => {
@@ -23,7 +23,7 @@ const Sidebar = ({ activeFileId, onOpenFile }: SidebarProps) => {
         <span className="text-[10px] cursor-pointer hover:text-white">...</span>
       </div>
 
-      <div className="flex flex-col gap-0 overflow-y-auto flex-grow">
+      <div className="flex flex-col gap-0 overflow-y-auto grow">
         {/* Project Root */}
         <div className="flex items-center gap-1 px-2 py-1 text-gray-300 font-bold hover:bg-[#2a2d2e] cursor-pointer">
           <ChevronDown size={16} />

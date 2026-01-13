@@ -1,13 +1,14 @@
 import axios from "axios";
 
-const FALLBACK_BASE_URL = "http://localhost:4000";
+// Use 127.0.0.1 (not localhost) to avoid IPv6 (::1) resolution issues on Windows.
+const FALLBACK_BASE_URL = "http://127.0.0.1:4000";
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL ?? FALLBACK_BASE_URL;
 
 if (!process.env.NEXT_PUBLIC_API_URL && process.env.NODE_ENV === "development") {
   // Log once so developers know they are hitting the fallback URL.
   console.warn(
-    "NEXT_PUBLIC_API_URL is not set. Falling back to http://localhost:4000."
+    "NEXT_PUBLIC_API_URL is not set. Falling back to http://127.0.0.1:4000."
   );
 }
 

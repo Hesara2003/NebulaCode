@@ -70,4 +70,57 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
     return this.fallbackStore.has(key);
   }
+
+  /**
+   * Add a member to a set (SADD).
+   */
+  async addToSet(key: string, member: string): Promise<void> {
+    if (this.client) {
+      await this.client.sadd(key, member);
+    } else {
+      const existing = this.fallbackStore.get(key);
+      const set = existing ? new Set<string>(JSON.parse(existing)) : new Set<string>();
+      set.add(member);
+      this.fallbackStore.set(key, JSON.stringify([...set]));
+    }
+  }
+
+  /**
+   * Remove a member from a set (SREM).
+   */
+  async removeFromSet(key: string, member: string): Promise<void> {
+    if (this.client) {
+      await this.client.srem(key, member);
+    } else {
+      const existing = this.fallbackStore.get(key);
+      if (existing) {
+        const set = new Set<string>(JSON.parse(existing));
+        set.delete(member);
+        this.fallbackStore.set(key, JSON.stringify([...set]));
+      }
+    }
+  }
+
+  /**
+   * Get all members of a set (SMEMBERS).
+   */
+  async getSetMembers(key: string): Promise<string[]> {
+    if (this.client) {
+      return this.client.smembers(key);
+    } else {
+      const existing = this.fallbackStore.get(key);
+      return existing ? JSON.parse(existing) : [];
+    }
+  }
+
+  /**
+   * Delete a key.
+   */
+  async delete(key: string): Promise<void> {
+    if (this.client) {
+      await this.client.del(key);
+    } else {
+      this.fallbackStore.delete(key);
+    }
+  }
 }

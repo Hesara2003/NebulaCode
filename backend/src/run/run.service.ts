@@ -27,6 +27,7 @@ export class RunService {
   private readonly logger = new Logger(RunService.name);
   private readonly storePrefix = 'run:';
   private readonly logStorePrefix = 'run-logs:';
+  private readonly ACTIVE_RUNS_KEY = 'run:active-set';
 
   constructor(
     private readonly redisService: RedisService,
@@ -50,6 +51,7 @@ export class RunService {
     };
 
     await this.redisService.setJson(this.buildKey(runId), metadata);
+    await this.redisService.addToSet(this.ACTIVE_RUNS_KEY, runId);
     await this.initialiseRunLogs(metadata, file);
 
     await this.notifyRunner(metadata, file);
@@ -71,6 +73,7 @@ export class RunService {
 
   async updateRunStatus(runId: string, status: RunStatus): Promise<RunMetadata> {
     const metadata = await this.getRunMetadata(runId);
+    const previousStatus = metadata.status;
     metadata.status = status;
     metadata.updatedAt = new Date().toISOString();
 
@@ -80,6 +83,13 @@ export class RunService {
     }
 
     await this.redisService.setJson(this.buildKey(runId), metadata);
+
+    // Remove from active set when reaching terminal state
+    if (this.isTerminalStatus(status) && !this.isTerminalStatus(previousStatus)) {
+      await this.redisService.removeFromSet(this.ACTIVE_RUNS_KEY, runId);
+      this.logger.debug(`Run ${runId} removed from active set (status: ${status})`);
+    }
+
     return metadata;
   }
 
@@ -268,19 +278,48 @@ export class RunService {
    * @param thresholdMs - Maximum allowed running time in milliseconds
    */
   async getStaleRuns(thresholdMs: number): Promise<RunMetadata[]> {
-    // Note: In production, you'd want to use Redis SCAN or maintain a sorted set.
-    // For now, this relies on the cleanup worker tracking active run IDs.
-    // This is a placeholder that would need to be enhanced with proper run tracking.
-    this.logger.debug(`Checking for stale runs older than ${thresholdMs}ms`);
-    return [];
+    const now = Date.now();
+    const staleRuns: RunMetadata[] = [];
+    const activeRunIds = await this.getActiveRunIds();
+
+    for (const runId of activeRunIds) {
+      try {
+        const metadata = await this.redisService.getJson<RunMetadata>(this.buildKey(runId));
+        if (!metadata) {
+          // Run metadata missing but still in active set - clean up the orphan
+          this.logger.warn(`Orphaned run ID ${runId} found in active set (no metadata). Removing.`);
+          await this.redisService.removeFromSet(this.ACTIVE_RUNS_KEY, runId);
+          continue;
+        }
+
+        // Only consider runs that are in Running state
+        if (metadata.status !== RunStatus.Running) {
+          continue;
+        }
+
+        // Check if startedAt exists and exceeds threshold
+        if (metadata.startedAt) {
+          const startedAtMs = new Date(metadata.startedAt).getTime();
+          const runningDuration = now - startedAtMs;
+          if (runningDuration > thresholdMs) {
+            this.logger.debug(`Run ${runId} is stale (running for ${runningDuration}ms)`);
+            staleRuns.push(metadata);
+          }
+        }
+      } catch (error) {
+        const err = error as Error;
+        this.logger.error(`Error checking run ${runId} for staleness: ${err.message}`);
+      }
+    }
+
+    this.logger.debug(`Found ${staleRuns.length} stale run(s) out of ${activeRunIds.length} active runs`);
+    return staleRuns;
   }
 
   /**
    * Get all run IDs currently being tracked (for cleanup worker).
-   * In a real implementation, this would scan Redis keys or use a set.
    */
   async getActiveRunIds(): Promise<string[]> {
-    // Placeholder - in production, maintain a Redis set of active run IDs
-    return [];
+    return this.redisService.getSetMembers(this.ACTIVE_RUNS_KEY);
   }
 }

@@ -8,11 +8,11 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
-import { WorkspaceModule } from './workspace/workspace.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 import { RedisModule } from './redis/redis.module';
 import { RunModule } from './run/run.module';
+import { RunsModule } from './runs/runs.module';
 import { CollabModule } from './collab/collab.module';
 
 @Module({
@@ -36,8 +36,8 @@ import { CollabModule } from './collab/collab.module';
     CollabModule,
     WorkspacesModule,
     AuthModule,
-    WorkspaceModule,
     RunModule,
+    RunsModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway],

@@ -17,6 +17,7 @@ export interface RunMetadata {
   createdAt: string;
   updatedAt: string;
   startedAt?: string; // Set when status transitions to Running
+  containerId?: string; // Docker container ID for cleanup
 }
 
 export interface RunLogsPayload {

@@ -18,6 +18,9 @@ export class WorkspacesService {
 
   async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
     try {
+      // Ensure workspace and default files exist
+      await this.storageService.ensureWorkspace(workspaceId);
+
       // Decode fileId if it's base64 encoded or just use it as relative path
       // For this implementation, we assume fileId IS the relative path (e.g., "src/main.ts")
       const decodedFileId = decodeURIComponent(fileId);
@@ -42,8 +45,26 @@ export class WorkspacesService {
   }
 
   async saveFile(workspaceId: string, fileId: string, content: string): Promise<void> {
+    // Ensure workspace exists
+    await this.storageService.ensureWorkspace(workspaceId);
+
     const decodedFileId = decodeURIComponent(fileId);
     await this.storageService.saveFile(workspaceId, decodedFileId, content);
+  }
+
+  async createFile(workspaceId: string, filePath: string, content: string = ''): Promise<WorkspaceFile> {
+    await this.storageService.ensureWorkspace(workspaceId);
+    await this.storageService.saveFile(workspaceId, filePath, content);
+    return this.getFile(workspaceId, filePath);
+  }
+
+  async deleteFile(workspaceId: string, fileId: string): Promise<void> {
+    const decodedFileId = decodeURIComponent(fileId);
+    await this.storageService.deleteFile(workspaceId, decodedFileId);
+  }
+
+  async listFiles(workspaceId: string) {
+    return this.storageService.listFiles(workspaceId);
   }
 
   private getLanguageFromExtension(ext: string): string {

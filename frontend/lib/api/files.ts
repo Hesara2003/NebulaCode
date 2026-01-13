@@ -1,6 +1,13 @@
 import type { FileEntity } from "@/types/editor";
 import { apiClient } from "./httpClient";
 
+export interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
+}
+
 /**
  * Retrieves a single file and its contents. Backend should hydrate the payload
  * with the latest version stored in the workspace persistence layer.
@@ -32,3 +39,40 @@ export const saveFile = async (
     { content }
   );
 };
+
+/**
+ * List all files in a workspace.
+ */
+export const listFiles = async (workspaceId: string): Promise<FileNode[]> => {
+  const { data } = await apiClient.get<FileNode[]>(
+    `/workspaces/${workspaceId}/files`
+  );
+  return data;
+};
+
+/**
+ * Create a new file in the workspace.
+ */
+export const createFile = async (
+  workspaceId: string,
+  filePath: string,
+  content: string = ''
+): Promise<FileEntity> => {
+  const { data } = await apiClient.post<FileEntity>(
+    `/workspaces/${workspaceId}/files`,
+    { path: filePath, content }
+  );
+  return data;
+};
+
+/**
+ * Delete a file from the workspace.
+ */
+export const deleteFile = async (
+  workspaceId: string,
+  fileId: string
+): Promise<void> => {
+  const encodedFileId = encodeURIComponent(fileId);
+  await apiClient.delete(`/workspaces/${workspaceId}/files/${encodedFileId}`);
+};
+

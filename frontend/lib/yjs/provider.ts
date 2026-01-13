@@ -21,9 +21,13 @@ const resolveSocketBaseUrl = () => {
 };
 
 export function createCollaborationSocket(user: PresenceUser): Socket {
+  // Backend gateway uses:
+  // Namespace: /editor-sync
+  // Path:      /editor-sync/socket.io
   const baseUrl = resolveSocketBaseUrl();
-  // Connect to the editor-sync namespace with custom path
-  return io(`${baseUrl}/editor-sync`, {
+  const url = `${baseUrl}/editor-sync`;
+
+  return io(url, {
     path: "/editor-sync/socket.io",
     transports: ["websocket"],
     autoConnect: false,

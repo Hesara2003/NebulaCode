@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { CleanupService } from './cleanup.service';
 import { RunService } from './run.service';
 import { RunStatus, RunMetadata } from './run.types';
@@ -13,10 +14,15 @@ describe('CleanupService', () => {
             timeoutRun: jest.fn(),
         };
 
+        const mockConfigService = {
+            get: jest.fn().mockReturnValue(30000),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 CleanupService,
                 { provide: RunService, useValue: mockRunService },
+                { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
 
