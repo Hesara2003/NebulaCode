@@ -10,7 +10,8 @@ import { RunsService } from './runs.service';
 
 @UseGuards(WsAuthGuard)
 @WebSocketGateway({
-  path: '/runs',
+  namespace: 'runs',
+  path: '/runs/socket.io',
   cors: { origin: true },
   transports: ['websocket'],
 })

@@ -16,9 +16,10 @@ import { Button } from "./ui/button";
 type RunStatus =
   | "queued"
   | "running"
-  | "succeeded"
+  | "completed"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "timed_out";
 
 type RunStreamEvent =
   | { type: "stdout"; data: string }
@@ -38,6 +39,17 @@ const resolveTerminalSocketUrl = () => {
   const explicit = process.env.NEXT_PUBLIC_TERMINAL_SOCKET_URL;
   const fallback = process.env.NEXT_PUBLIC_SOCKET_URL;
   return (explicit ?? fallback ?? getApiBaseUrl()).replace(/\/$/, "");
+};
+
+const resolveWsAuthToken = (token?: string) => {
+  if (token) return token;
+  const fromEnv = process.env.NEXT_PUBLIC_WS_AUTH_TOKEN;
+  if (fromEnv) return fromEnv;
+
+  // Backend WsAuthGuard defaults to 'devtoken' if WS_AUTH_TOKEN is not set.
+  // Keep a dev fallback so the demo works out-of-the-box.
+  if (process.env.NODE_ENV !== "production") return "devtoken";
+  return undefined;
 };
 
 /* ---------------- COMPONENT ---------------- */
@@ -61,9 +73,9 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       );
     };
 
-    window.addEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
+    globalThis.addEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
     return () =>
-      window.removeEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
+      globalThis.removeEventListener(TERMINAL_CLEAR_EVENT, clearHandler);
   }, []);
 
   /* ---------- Init Terminal + Socket ---------- */
@@ -94,12 +106,18 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       } catch {}
     };
 
-    window.addEventListener("resize", resizeHandler);
+    globalThis.addEventListener("resize", resizeHandler);
 
-    const socket = io(resolveTerminalSocketUrl(), {
+    const wsToken = resolveWsAuthToken(token);
+
+    const socket = io(`${resolveTerminalSocketUrl()}/runs`, {
+      // Backend gateway is namespace "runs" with Socket.IO path "/runs/socket.io".
+      // We must set the client "path" to match, otherwise Socket.IO will hit "/socket.io" and fail
+      // with "Invalid namespace".
+      path: "/runs/socket.io",
       transports: ["websocket"],
       query: { runId },
-      auth: token ? { token } : undefined,
+      auth: wsToken ? { token: wsToken } : undefined,
       reconnection: true,
       reconnectionAttempts: 5,
     });
@@ -139,7 +157,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
     );
 
     return () => {
-      window.removeEventListener("resize", resizeHandler);
+      globalThis.removeEventListener("resize", resizeHandler);
       socket.disconnect();
       term.dispose();
       terminalInstanceRef.current = null;
@@ -161,7 +179,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
 
   const disableCancel =
     isCancelling ||
-    ["succeeded", "failed", "cancelled"].includes(status);
+    ["completed", "failed", "cancelled", "timed_out"].includes(status);
 
   /* ---------- UI ---------- */
   return (
@@ -173,11 +191,12 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
           <span
             className={cn(
               "px-2 py-1 text-xs rounded-full border",
-              status === "running" && "border-emerald-500 text-emerald-400",
-              status === "queued" && "border-amber-500 text-amber-400",
-              status === "succeeded" && "border-blue-500 text-blue-400",
+              status === "running" && "border-emerald-500 text-emerald-400 animate-pulse",
+              status === "queued" && "border-amber-500 text-amber-400 animate-pulse",
+              status === "completed" && "border-blue-500 text-blue-400",
               status === "failed" && "border-red-500 text-red-400",
-              status === "cancelled" && "border-gray-500 text-gray-300"
+              status === "cancelled" && "border-gray-500 text-gray-300",
+              status === "timed_out" && "border-orange-500 text-orange-400"
             )}
           >
             {status}

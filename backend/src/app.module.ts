@@ -9,11 +9,11 @@ import { AuthModule } from './auth';
 import { EditorSyncGateway } from './collab/editor-sync.gateway';
 import { WebsocketGateway } from './websocket/websocket.gateway';
 import { WorkspacesModule } from './workspaces/workspaces.module';
-import { WorkspaceModule } from './workspace/workspace.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 import { RedisModule } from './redis/redis.module';
 import { RunModule } from './run/run.module';
+import { RunsModule } from './runs/runs.module';
 
 @Module({
   imports: [
@@ -35,8 +35,8 @@ import { RunModule } from './run/run.module';
     RedisModule,
     WorkspacesModule,
     AuthModule,
-    WorkspaceModule,
     RunModule,
+    RunsModule,
   ],
   controllers: [AppController],
   providers: [AppService, WebsocketGateway, EditorSyncGateway],

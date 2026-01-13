@@ -13,8 +13,12 @@ const resolveSocketBaseUrl = () => {
 };
 
 export function createCollaborationSocket(user: PresenceUser): Socket {
+  // Backend gateway is namespace "editor-sync" with Socket.IO path "/editor-sync/socket.io".
+  // We must set the client "path" to match, otherwise Socket.IO will hit "/socket.io" and fail
+  // with "Invalid namespace".
   const url = `${resolveSocketBaseUrl()}/editor-sync`;
   return io(url, {
+    path: "/editor-sync/socket.io",
     transports: ["websocket"],
     autoConnect: false,
     withCredentials: true,
