@@ -1,10 +1,15 @@
-import { Controller, Get, Param, Post, Body } from '@nestjs/common';
+import { Controller, Get, Param, Post, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { WorkspacesService } from './workspaces.service';
 import type { WorkspaceFile } from './workspaces.service';
 
 @Controller('workspaces')
 export class WorkspacesController {
   constructor(private readonly workspacesService: WorkspacesService) { }
+
+  @Get(':workspaceId/files')
+  async listFiles(@Param('workspaceId') workspaceId: string) {
+    return this.workspacesService.listFiles(workspaceId);
+  }
 
   @Get(':workspaceId/files/:fileId') // CAREFUL: This route param :fileId must capture path slashes if we use path as ID
   async getFile(
@@ -29,4 +34,23 @@ export class WorkspacesController {
     await this.workspacesService.saveFile(workspaceId, decodeURIComponent(fileId), body.content);
     return { success: true };
   }
+
+  @Post(':workspaceId/files')
+  async createFile(
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: { path: string; content?: string },
+  ) {
+    const file = await this.workspacesService.createFile(workspaceId, body.path, body.content ?? '');
+    return file;
+  }
+
+  @Delete(':workspaceId/files/:fileId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteFile(
+    @Param('workspaceId') workspaceId: string,
+    @Param('fileId') fileId: string,
+  ) {
+    await this.workspacesService.deleteFile(workspaceId, decodeURIComponent(fileId));
+  }
 }
+

@@ -88,6 +88,8 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const bindingClassRef = useRef<MonacoBindingClass | null>(null);
   const currentDocumentIdRef = useRef<string | null>(null);
   const runStatesRef = useRef<Record<string, RunSnapshot>>({});
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const joinDocument = useCollaborationStore((state) => state.joinDocument);
   const leaveDocument = useCollaborationStore((state) => state.leaveDocument);
@@ -708,6 +710,50 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave, handleRun]);
 
+  // Auto-save with debouncing (2 seconds after typing stops)
+  useEffect(() => {
+    if (!activeFile || !hasUnsavedChanges || isSaving) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer for auto-save
+    autoSaveTimerRef.current = setTimeout(() => {
+      setSaveStatus('saving');
+      handleSave()
+        .then(() => {
+          setSaveStatus('saved');
+          // Reset to idle after showing "saved" for 2 seconds
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        })
+        .catch(() => {
+          setSaveStatus('error');
+          toast.error('Auto-save failed. Your changes are still in the editor.', 3000);
+        });
+    }, 2000); // 2 second debounce
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [sharedContent, activeFile, hasUnsavedChanges, isSaving, handleSave]);
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   useEffect(() => {
     if (!isAnyRunInFlight) {
       setPollingError(null);
@@ -797,7 +843,32 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             activeTabId={activeTabId}
             onSelect={handleSelectTab}
             onClose={handleCloseTab}
+            unsavedTabIds={hasUnsavedChanges && activeFile ? [activeFile.id] : []}
           />
+        </div>
+        {/* Save status indicator */}
+        <div className="flex items-center gap-2 px-2 text-xs">
+          {saveStatus === 'saving' && (
+            <span className="flex items-center gap-1 text-gray-400">
+              <Loader2 size={12} className="animate-spin" />
+              Saving...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="flex items-center gap-1 text-green-400">
+              <Check size={12} />
+              Saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="flex items-center gap-1 text-red-400">
+              <XCircle size={12} />
+              Save failed
+            </span>
+          )}
+          {hasUnsavedChanges && saveStatus === 'idle' && (
+            <span className="text-gray-500">Unsaved</span>
+          )}
         </div>
         <div className="hidden items-center gap-3 px-4 sm:flex">
           {displayedRun ? (
@@ -867,16 +938,16 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
             {isSaving
               ? "Saving"
               : isRunRequestPending
-              ? "Starting run"
-              : activeRunInFlight && activeRun?.status === "queued"
-              ? "Queued"
-              : activeRunInFlight && activeRun?.status === "running"
-              ? "Running"
-              : activeRun && isTerminalStatus(activeRun.status)
-              ? "Run Again"
-              : hasUnsavedChanges
-              ? "Save & Run"
-              : "Run"}
+                ? "Starting run"
+                : activeRunInFlight && activeRun?.status === "queued"
+                  ? "Queued"
+                  : activeRunInFlight && activeRun?.status === "running"
+                    ? "Running"
+                    : activeRun && isTerminalStatus(activeRun.status)
+                      ? "Run Again"
+                      : hasUnsavedChanges
+                        ? "Save & Run"
+                        : "Run"}
           </button>
           {activeRunInFlight && activeRun ? (
             <button

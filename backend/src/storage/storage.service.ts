@@ -66,6 +66,15 @@ export class StorageService implements OnModuleInit {
         }
     }
 
+    async deleteFile(workspaceId: string, filePath: string): Promise<void> {
+        const fullPath = path.join(this.getWorkspacePath(workspaceId), filePath);
+        try {
+            await fs.unlink(fullPath);
+        } catch (error) {
+            throw new Error(`Failed to delete file: ${filePath}`);
+        }
+    }
+
     async listFiles(workspaceId: string): Promise<FileNode[]> {
         const workspacePath = this.getWorkspacePath(workspaceId);
         await this.ensureWorkspace(workspaceId);

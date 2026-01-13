@@ -10,9 +10,10 @@ interface TabsBarProps {
   activeTabId: string | null;
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
+  unsavedTabIds?: string[];
 }
 
-const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
+const TabsBar = ({ tabs, activeTabId, onSelect, onClose, unsavedTabIds = [] }: TabsBarProps) => {
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>, tabId: string) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -31,6 +32,7 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
 
     return tabs.map((tab) => {
       const isActive = tab.id === activeTabId;
+      const isUnsaved = unsavedTabIds.includes(tab.id);
       return (
         <div
           key={tab.id}
@@ -48,6 +50,12 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
         >
           <span className="flex flex-1 items-center truncate font-medium leading-none">
             {tab.name}
+            {isUnsaved && (
+              <span
+                className="ml-1.5 h-2 w-2 rounded-full bg-white/60"
+                title="Unsaved changes"
+              />
+            )}
           </span>
           <button
             type="button"
@@ -73,3 +81,4 @@ const TabsBar = ({ tabs, activeTabId, onSelect, onClose }: TabsBarProps) => {
 };
 
 export default TabsBar;
+
