@@ -14,37 +14,38 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
+    particles: THREE.Points[];
     animationId: number;
     count: number;
   } | null>(null);
 
   useEffect(() => {
-    const targetContainer = containerRef.current;
-    if (!targetContainer) return;
+    if (!containerRef.current) return;
 
     const SEPARATION = 150;
     const AMOUNTX = 40;
     const AMOUNTY = 60;
 
-    // Scene setup
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xffffff, 2000, 10000);
+    try {
+      // Scene setup
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0xffffff, 2000, 10000);
 
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      1,
-      10000,
-    );
-    camera.position.set(0, 355, 1220);
+      const camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        1,
+        10000,
+      );
+      camera.position.set(0, 355, 1220);
 
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-    });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(scene.fog.color, 0);
+      const renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true,
+      });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(scene.fog.color, 0);
 
     // Attach canvas and ensure it stays behind all content.
     // Append the canvas to document.body to guarantee it sits behind all content
@@ -64,15 +65,16 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       if (document && document.body) {
         document.body.appendChild(canvas);
         appendedToBody = true;
-      } else if (targetContainer) {
-        targetContainer.appendChild(canvas);
+      } else if (containerRef.current) {
+        containerRef.current.appendChild(canvas);
       }
-    } catch {
+    } catch (e) {
       // Fallback to mounting inside the container if body append fails for any reason
-      if (targetContainer) targetContainer.appendChild(canvas);
+      if (containerRef.current) containerRef.current.appendChild(canvas);
     }
 
     // Create particles
+    const particles: THREE.Points[] = [];
     const positions: number[] = [];
     const colors: number[] = [];
 
@@ -114,7 +116,7 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     scene.add(points);
 
     let count = 0;
-    let animationId: number;
+    let animationId = 0;
 
     // Animation function
     const animate = () => {
@@ -140,6 +142,14 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       positionAttribute.needsUpdate = true;
 
       // Update point sizes based on wave
+      const customMaterial = material as THREE.PointsMaterial & {
+        uniforms?: Record<string, unknown>;
+      };
+      if (!customMaterial.uniforms) {
+        // For dynamic size changes, we'd need a custom shader
+        // For now, keeping constant size for performance
+      }
+
       renderer.render(scene, camera);
       count += 0.1;
     };
@@ -161,6 +171,7 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       scene,
       camera,
       renderer,
+      particles: [points],
       animationId,
       count,
     };
@@ -190,12 +201,17 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
           const domEl = sceneRef.current.renderer.domElement as HTMLCanvasElement;
           if (appendedToBody && document && document.body && document.body.contains(domEl)) {
             document.body.removeChild(domEl);
-          } else if (targetContainer && targetContainer.contains(domEl)) {
-            targetContainer.removeChild(domEl);
+          } else if (containerRef.current && containerRef.current.contains(domEl)) {
+            containerRef.current.removeChild(domEl);
           }
         }
       }
     };
+    } catch (error) {
+      console.warn('[DottedSurface] WebGL not available, skipping 3D background:', error);
+      // Gracefully continue without 3D background
+      return () => {}; // Return empty cleanup function
+    }
   }, [theme]);
 
   return (

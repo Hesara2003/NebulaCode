@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -9,7 +9,14 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs';
+import { encodeStateAsUpdate } from 'yjs';
+import {
+  CollaborationConfigService,
+  DEFAULT_COLLAB_NAMESPACE,
+  DEFAULT_COLLAB_SOCKET_PATH,
+  resolveAllowedOrigins,
+} from './collab.config';
+import { CollaborationDocumentService } from './collab-document.service';
 
 export type PresenceParticipant = {
   id: string;
@@ -26,38 +33,55 @@ type DocumentJoinPayload = {
 type DocumentUpdatePayload = {
   documentId?: unknown;
   update?: unknown;
+  clientTimestamp?: unknown;
 };
 
 type DocumentLeavePayload = {
   documentId?: unknown;
 };
 
+type AwarenessUpdatePayload = {
+  documentId?: unknown;
+  update?: unknown;
+  timestamp?: unknown;
+};
+
+const namespace = process.env.COLLAB_NAMESPACE ?? DEFAULT_COLLAB_NAMESPACE;
+const socketPath = process.env.COLLAB_SOCKET_PATH ?? DEFAULT_COLLAB_SOCKET_PATH;
+const allowedOrigins = resolveAllowedOrigins(
+  process.env.COLLAB_ALLOWED_ORIGINS,
+);
+
 @WebSocketGateway({
-  namespace: 'editor-sync',
-  path: '/editor-sync/socket.io',
+  namespace,
+  path: socketPath,
   cors: {
-    origin: [
-      ...(process.env.COLLAB_ALLOWED_ORIGINS?.split(',')
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0) ?? []),
-      /localhost:\d+$/,
-      /^http:\/\/127\.0\.0\.1:\d+$/,
-    ],
+    origin: allowedOrigins,
     credentials: true,
   },
   transports: ['websocket'],
 })
 export class EditorSyncGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit
 {
   @WebSocketServer()
   private readonly server!: Server;
 
   private readonly logger = new Logger(EditorSyncGateway.name);
   private readonly participants = new Map<string, PresenceParticipant>();
-  private readonly documents = new Map<string, Doc>();
   private readonly clientDocuments = new Map<string, Set<string>>();
   private readonly documentParticipants = new Map<string, Set<string>>();
+
+  constructor(
+    private readonly documents: CollaborationDocumentService,
+    private readonly config: CollaborationConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    this.logger.log(
+      `EditorSyncGateway ready (namespace=${this.config.namespace}, path=${this.config.socketPath})`,
+    );
+  }
 
   handleConnection(client: Socket): void {
     const participant = this.extractParticipant(client);
@@ -101,10 +125,10 @@ export class EditorSyncGateway
   }
 
   @SubscribeMessage('document:join')
-  handleDocumentJoin(
+  async handleDocumentJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload?: DocumentJoinPayload,
-  ): void {
+  ): Promise<void> {
     try {
       const documentId = this.ensureString(payload?.documentId);
       if (!documentId) {
@@ -117,7 +141,7 @@ export class EditorSyncGateway
       }
 
       const stateVector = this.ensureUint8Array(payload?.stateVector);
-      const document = this.getOrCreateDocument(documentId);
+      const document = await this.documents.getDocument(documentId);
 
       let update: Uint8Array;
 
@@ -142,10 +166,10 @@ export class EditorSyncGateway
   }
 
   @SubscribeMessage('document:update')
-  handleDocumentUpdate(
+  async handleDocumentUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload?: DocumentUpdatePayload,
-  ): void {
+  ): Promise<void> {
     try {
       const documentId = this.ensureString(payload?.documentId);
       if (!documentId) {
@@ -163,12 +187,24 @@ export class EditorSyncGateway
         return;
       }
 
-      const document = this.getOrCreateDocument(documentId);
+      const clientTimestamp = this.ensureNumber(payload?.clientTimestamp);
+      const serverTimestamp = Date.now();
 
-      applyUpdate(document, update, client.id);
-      client.broadcast
-        .to(this.roomName(documentId))
-        .emit('document:update', { documentId, update, actor: client.id });
+      await this.documents.applyUpdate(documentId, update);
+      
+      const roomName = this.roomName(documentId);
+      
+      client.broadcast.to(roomName).emit('document:update', {
+        documentId,
+        update,
+        actor: client.id,
+        clientTimestamp,
+        serverTimestamp,
+      });
+      client.emit('document:update:ack', {
+        documentId,
+        serverTimestamp,
+      });
     } catch (error) {
       this.logger.error(
         `Failed to handle document update from ${client.id}: ${error}`,
@@ -187,6 +223,44 @@ export class EditorSyncGateway
     }
 
     this.untrackDocumentMembership(client, documentId);
+  }
+
+  @SubscribeMessage('awareness:update')
+  handleAwarenessUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: AwarenessUpdatePayload,
+  ): void {
+    const documentId = this.ensureString(payload?.documentId);
+    if (!documentId) {
+      return;
+    }
+
+    const update = this.ensureUint8Array(payload?.update);
+    if (!update) {
+      return;
+    }
+
+    const timestamp = this.ensureNumber(payload?.timestamp) ?? Date.now();
+
+    client.broadcast.to(this.roomName(documentId)).emit('awareness:update', {
+      documentId,
+      update,
+      actor: client.id,
+      timestamp,
+    });
+  }
+
+  @SubscribeMessage('awareness:query')
+  handleAwarenessQuery(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload?: { documentId?: unknown },
+  ): void {
+    const documentId = this.ensureString(payload?.documentId);
+    if (!documentId) {
+      return;
+    }
+
+    client.broadcast.to(this.roomName(documentId)).emit('awareness:query');
   }
 
   private extractParticipant(client: Socket): PresenceParticipant {
@@ -222,17 +296,6 @@ export class EditorSyncGateway
     return `${first}${second}`.toUpperCase();
   }
 
-  private getOrCreateDocument(documentId: string): Doc {
-    let document = this.documents.get(documentId);
-
-    if (!document) {
-      document = new Doc();
-      this.documents.set(documentId, document);
-    }
-
-    return document;
-  }
-
   private ensureUint8Array(input: unknown): Uint8Array | undefined {
     if (input instanceof Uint8Array) {
       return input;
@@ -251,7 +314,8 @@ export class EditorSyncGateway
   }
 
   private trackDocumentMembership(client: Socket, documentId: string): void {
-    void client.join(this.roomName(documentId));
+    const roomName = this.roomName(documentId);
+    void client.join(roomName);
 
     const existingDocuments =
       this.clientDocuments.get(client.id) ?? new Set<string>();
@@ -280,7 +344,27 @@ export class EditorSyncGateway
       participants.delete(client.id);
       if (participants.size === 0) {
         this.documentParticipants.delete(documentId);
+        void this.documents
+          .flushDocument(documentId)
+          .catch((error) =>
+            this.logger.error(
+              `Failed to flush document ${documentId}: ${error instanceof Error ? error.message : error}`,
+            ),
+          );
       }
     }
+  }
+
+  private ensureNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return undefined;
   }
 }

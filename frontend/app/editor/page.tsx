@@ -15,6 +15,10 @@ const TerminalComponent = dynamic(() => import("@/components/TerminalComponent")
   ),
 });
 
+const PresenceBar = dynamic(() => import("@/components/PresenceBar"), {
+  ssr: false,
+});
+
 export default function Home() {
   const [activeFileId, setActiveFileId] = useState<string | null>("welcome.ts");
   const runId = "demo-run";
@@ -38,6 +42,9 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex flex-col grow h-full">
+        {/* Presence Bar - Shows connected users */}
+        <PresenceBar />
+        
         <div className="relative grow bg-[#1e1e1e]">
           <EditorPane
             workspaceId="demo-workspace"
