@@ -2,6 +2,8 @@ name: Build & Push Runner Image
 
 on:
   push:
+    branches:
+      - week02-devops
     paths:
       - "runner/**"
       - ".github/workflows/runner-image.yml"
@@ -21,12 +23,15 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      - name: Set image owner (lowercase)
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
       - name: Build runner image
         run: |
           docker build \
-            -t ghcr.io/${{ github.repository_owner | toLower }}/nebula-runner:latest \
+            -t ghcr.io/$OWNER/nebula-runner:latest \
             ./runner
 
       - name: Push runner image
         run: |
-          docker push ghcr.io/${{ github.repository_owner | toLower }}/nebula-runner:latest
+          docker push ghcr.io/$OWNER/nebula-runner:latest
