@@ -480,7 +480,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       const wsToken = resolveWsAuthToken(token);
       const socketUrl = `${resolveTerminalSocketUrl()}/runs`;
 
-      const socket = io(socketUrl, {
+      const newSocket = io(socketUrl, {
         path: "/runs/socket.io",
         transports: ["websocket"],
         query: { runId },
@@ -493,8 +493,15 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
         forceNew: true, // Create new connection for each runId
       });
 
-      socketRef.current = socket;
+      socketRef.current = newSocket;
       setConnectionStatus("connecting");
+    }
+
+    // Get socket reference for event handlers
+    const socket = socketRef.current;
+    if (!socket) {
+      return;
+    }
 
     // Socket event handlers with duplicate prevention
     const handleConnect = () => {
@@ -633,16 +640,35 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
     socket.on("run-event", handleRunEvent);
     eventHandlersRef.current.set("run-event", handleRunEvent);
 
-    // Initial system message
-    writeSystemMessage(term, `Starting run: ${runId}`, "info");
-    term.writeln(""); // Empty line for spacing
+    // Initial system message only for new connections or when runId changes
+    if (runIdChanged || !socketRef.current) {
+      if (runIdChanged && terminalExists) {
+        // Already added separator above, just add connection message
+        writeSystemMessage(term, `Connecting to run: ${runId}`, "info");
+      } else {
+        writeSystemMessage(term, `Starting run: ${runId}`, "info");
+      }
+      term.writeln(""); // Empty line for spacing
+    }
 
-    // Cleanup on unmount or runId change
+    // Cleanup on unmount
     return () => {
-      isMountedRef.current = false;
-      cleanup();
+      // Only cleanup socket, not terminal instance
+      if (socketRef.current) {
+        try {
+          eventHandlersRef.current.forEach((handler, event) => {
+            socketRef.current?.off(event, handler);
+          });
+          eventHandlersRef.current.clear();
+          socketRef.current.removeAllListeners();
+          socketRef.current.disconnect();
+        } catch (error) {
+          console.error("[Terminal] Socket cleanup error:", error);
+        }
+        socketRef.current = null;
+      }
     };
-  }, [runId, token, apiBaseUrl, cleanup]);
+  }, [runId, token, apiBaseUrl]);
 
   /* ---------- Cancel Run ---------- */
   const handleCancel = useCallback(async () => {
