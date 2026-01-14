@@ -153,7 +153,7 @@ const writeStatusUpdate = (
   if (!term) return;
   try {
     let statusColor = ANSI_COLORS.system;
-    let statusText = status;
+    let statusText: string = status;
 
     switch (status) {
       case "queued":
@@ -220,7 +220,7 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
   const reconnectAttemptsRef = useRef(0);
   const isMountedRef = useRef(true);
   const previousRunIdRef = useRef<string | null>(null);
-  const eventHandlersRef = useRef<Map<string, (...args: unknown[]) => void>>(
+  const eventHandlersRef = useRef<Map<string, (...args: any[]) => void>>(
     new Map()
   );
   const shouldAutoScrollRef = useRef(true);
@@ -367,17 +367,16 @@ const TerminalComponent = ({ runId, token }: TerminalComponentProps) => {
       isNewTerminal = true;
       try {
         term = new Terminal({
-        theme: {
-          background: "#1e1e1e",
-          foreground: "#ffffff",
-          cursor: "#ffffff",
-          selection: "#264f78",
-        },
-        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-        fontSize: 14,
-        cursorBlink: true,
-        allowProposedApi: true,
-        convertEol: true,
+          theme: {
+            background: "#1e1e1e",
+            foreground: "#ffffff",
+            cursor: "#ffffff",
+          },
+          fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+          fontSize: 14,
+          cursorBlink: true,
+          allowProposedApi: true,
+          convertEol: true,
           scrollback: 10000, // Large scrollback buffer
           disableStdin: true, // Disable input
         });

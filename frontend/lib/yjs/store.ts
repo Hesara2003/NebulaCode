@@ -336,8 +336,28 @@ const useCollaborationStore = create<CollaborationState>((set, get) => ({
         });
       };
 
-      const handlePresenceUpdate = (participants: PresenceUser[]) => {
-        set({ participants });
+      const handlePresenceUpdate = (newParticipants: PresenceUser[]) => {
+        const currentParticipants = get().participants;
+
+        // Deep compare participants to prevent unnecessary updates
+        if (newParticipants.length !== currentParticipants.length) {
+          set({ participants: newParticipants });
+          return;
+        }
+
+        const newSet = new Set(
+          newParticipants.map((p) => `${p.id}:${p.name}:${p.color}`),
+        );
+        const currentSet = new Set(
+          currentParticipants.map((p) => `${p.id}:${p.name}:${p.color}`),
+        );
+
+        if (
+          newSet.size !== currentSet.size ||
+          ![...newSet].every((item) => currentSet.has(item))
+        ) {
+          set({ participants: newParticipants });
+        }
       };
 
       const handleDocumentSync = (payload: DocumentPayload) => {
