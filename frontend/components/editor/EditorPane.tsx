@@ -87,10 +87,14 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   const editorInstanceRef = useRef<MonacoEditorNS.IStandaloneCodeEditor | null>(null);
   const bindingRef = useRef<MonacoBindingInstance | null>(null);
   const bindingClassRef = useRef<MonacoBindingClass | null>(null);
+  const bindingDestroyedRef = useRef<boolean>(false);
   const currentDocumentIdRef = useRef<string | null>(null);
   const runStatesRef = useRef<Record<string, RunSnapshot>>({});
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const lastSyncedContentRef = useRef<string>("");
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   const joinDocument = useCollaborationStore((state) => state.joinDocument);
   const leaveDocument = useCollaborationStore((state) => state.leaveDocument);
@@ -149,7 +153,7 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         }
       }
     },
-    [workspaceId, onActiveFileChange]
+    [workspaceId]
   );
 
   useEffect(() => {
@@ -216,7 +220,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
   useEffect(() => {
     const fileId = activeFile?.id;
     const documentId = fileId ? createDocumentId(workspaceId, fileId) : null;
-    const initialContent = activeFile?.content ?? "";
 
     let disposeTextObserver: (() => void) | undefined;
 
@@ -235,20 +238,37 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
       const synchronizeState = () => {
         const nextContent = text.toString();
-        setSharedContent(nextContent);
-        setActiveFile((prev) =>
-          prev && prev.id === fileId ? { ...prev, content: nextContent } : prev
+
+        // Only update React state if content actually changed to avoid infinite loops
+        if (nextContent === lastSyncedContentRef.current) {
+          return;
+        }
+        lastSyncedContentRef.current = nextContent;
+
+        setSharedContent((prev) =>
+          prev !== nextContent ? nextContent : prev,
         );
-        setOpenTabs((prev) =>
-          prev.map((tab) =>
+        setActiveFile((prev) =>
+          prev && prev.id === fileId && prev.content !== nextContent
+            ? { ...prev, content: nextContent }
+            : prev,
+        );
+        setOpenTabs((prev) => {
+          const needsUpdate = prev.some(
+            (tab) => tab.id === fileId && tab.content !== nextContent,
+          );
+          if (!needsUpdate) {
+            return prev;
+          }
+          return prev.map((tab) =>
             tab.id === fileId
               ? {
-                ...tab,
-                content: nextContent,
-              }
-              : tab
-          )
-        );
+                  ...tab,
+                  content: nextContent,
+                }
+              : tab,
+          );
+        });
       };
 
       synchronizeState();
@@ -273,8 +293,9 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         leaveDocument(documentId);
       }
       currentDocumentIdRef.current = null;
+      lastSyncedContentRef.current = "";
     };
-  }, [activeFile?.id, activeFile?.content, initializeDocument, joinDocument, leaveDocument, workspaceId]);
+  }, [activeFile?.id, workspaceId]);
 
   useEffect(() => {
     let disposed = false;
@@ -315,16 +336,47 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         return;
       }
 
-      bindingRef.current?.destroy();
-      bindingRef.current = new Binding(
-        getDocumentText(documentId),
-        model,
-        new Set([editorInstance]),
-        awareness
-      );
+      // Safely destroy any existing binding to avoid duplicate handlers
+      if (bindingRef.current && !bindingDestroyedRef.current) {
+        try {
+          bindingRef.current.destroy();
+        } catch (error) {
+          console.debug(
+            "[MonacoBinding] Error destroying existing binding (may already be destroyed):",
+            error,
+          );
+        }
+        bindingDestroyedRef.current = true;
+        bindingRef.current = null;
+      }
 
-      if (disposed) {
-        bindingRef.current?.destroy();
+      // Create new binding
+      try {
+        bindingRef.current = new Binding(
+          getDocumentText(documentId),
+          model,
+          new Set([editorInstance]),
+          awareness,
+        );
+        bindingDestroyedRef.current = false;
+      } catch (error) {
+        console.error("[MonacoBinding] Error creating binding:", error);
+        bindingRef.current = null;
+        bindingDestroyedRef.current = false;
+        return;
+      }
+
+      // If component was disposed while we were creating the binding, clean it up immediately
+      if (disposed && bindingRef.current && !bindingDestroyedRef.current) {
+        try {
+          bindingRef.current.destroy();
+        } catch (error) {
+          console.debug(
+            "[MonacoBinding] Error destroying binding after creation:",
+            error,
+          );
+        }
+        bindingDestroyedRef.current = true;
         bindingRef.current = null;
       }
     };
@@ -333,8 +385,18 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
     return () => {
       disposed = true;
-      bindingRef.current?.destroy();
-      bindingRef.current = null;
+      if (bindingRef.current && !bindingDestroyedRef.current) {
+        try {
+          bindingRef.current.destroy();
+        } catch (error) {
+          console.debug(
+            "[MonacoBinding] Error destroying binding in cleanup:",
+            error,
+          );
+        }
+        bindingDestroyedRef.current = true;
+        bindingRef.current = null;
+      }
     };
   }, [activeFile?.id, currentUser?.color, currentUser?.id, currentUser?.name]);
 

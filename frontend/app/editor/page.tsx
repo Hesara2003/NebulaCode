@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import ActivityBar from "@/components/ActivityBar";
 import EditorPane from "@/components/editor/EditorPane";
@@ -24,13 +24,13 @@ export default function Home() {
   const runId = "demo-run";
   const wsToken = process.env.NEXT_PUBLIC_WS_TOKEN ?? "devtoken";
 
-  const handleOpenFile = (fileId: string) => {
+  const handleOpenFile = useCallback((fileId: string) => {
     setActiveFileId(fileId);
-  };
+  }, []);
 
-  const handleActiveFileChange = (fileId: string | null) => {
+  const handleActiveFileChange = useCallback((fileId: string | null) => {
     setActiveFileId(fileId);
-  };
+  }, []);
 
   return (
     <main className="flex h-screen w-screen bg-[#1e1e1e] text-white overflow-hidden">
