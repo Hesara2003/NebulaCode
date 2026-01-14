@@ -14,7 +14,7 @@ export function resolveAllowedOrigins(raw?: string): (string | RegExp)[] {
   const normalized: (string | RegExp)[] = entries.map((origin) => {
     try {
       // Validate origin-like string by constructing URL
-      // eslint-disable-next-line no-new
+
       new URL(origin);
       return origin;
     } catch {
@@ -42,7 +42,8 @@ export class CollaborationConfigService {
     this.namespace =
       this.config.get<string>('COLLAB_NAMESPACE') ?? DEFAULT_COLLAB_NAMESPACE;
     this.socketPath =
-      this.config.get<string>('COLLAB_SOCKET_PATH') ?? DEFAULT_COLLAB_SOCKET_PATH;
+      this.config.get<string>('COLLAB_SOCKET_PATH') ??
+      DEFAULT_COLLAB_SOCKET_PATH;
     this.persistDebounceMs = this.parseNumber(
       'COLLAB_PERSIST_DEBOUNCE_MS',
       DEFAULT_PERSIST_DEBOUNCE_MS,

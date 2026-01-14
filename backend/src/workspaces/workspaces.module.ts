@@ -9,4 +9,4 @@ import { StorageModule } from '../storage/storage.module';
   providers: [WorkspacesService],
   exports: [WorkspacesService],
 })
-export class WorkspacesModule { }
+export class WorkspacesModule {}

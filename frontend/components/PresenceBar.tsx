@@ -1,7 +1,6 @@
 "use client";
 
 import { useCollaborationStore } from "@/lib/yjs";
-import { useEffect, useState } from "react";
 
 type PresenceBarProps = {
   className?: string;
@@ -12,13 +11,9 @@ export default function PresenceBar({ className, showMetrics = false }: Presence
   const participants = useCollaborationStore((state) => state.participants);
   const status = useCollaborationStore((state) => state.status) ?? "disconnected";
   const metrics = useCollaborationStore((state) => state.metrics);
-  const [activeParticipants, setActiveParticipants] = useState(participants);
 
-  useEffect(() => {
-    setActiveParticipants(participants);
-  }, [participants]);
-
-  const safeParticipants = Array.isArray(activeParticipants) ? activeParticipants : [];
+  // Use participants directly from store - ensure it's always an array
+  const safeParticipants = Array.isArray(participants) ? participants : [];
 
   const statusColor =
     status === "connected"

@@ -1,10 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { RunService } from './run.service';
 import { CreateRunDto } from './dto/create-run.dto';
 
 @Controller('run')
 export class RunController {
-  constructor(private readonly runService: RunService) { }
+  constructor(private readonly runService: RunService) {}
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)

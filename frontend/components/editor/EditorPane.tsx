@@ -129,7 +129,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
 
         setActiveFile(data);
         setActiveTabId(data.id);
-        onActiveFileChange?.(data.id);
         setRunError(null);
         setLastSavedContent(data.content ?? "");
         setOpenTabs((prev) => {
@@ -170,6 +169,13 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
     void openFile(fileId);
   }, [fileId, openFile]);
 
+  // Notify parent component when active tab changes (after render)
+  useEffect(() => {
+    if (onActiveFileChange) {
+      onActiveFileChange(activeTabId);
+    }
+  }, [activeTabId, onActiveFileChange]);
+
   const handleSelectTab = (tabId: string) => {
     if (tabId === activeTabId) return;
     void openFile(tabId, { optimisticActive: true });
@@ -189,7 +195,6 @@ const EditorPane = ({ workspaceId, fileId, onActiveFileChange }: EditorPaneProps
         } else {
           setActiveTabId(null);
           setActiveFile(null);
-          onActiveFileChange?.(null);
         }
       }
 

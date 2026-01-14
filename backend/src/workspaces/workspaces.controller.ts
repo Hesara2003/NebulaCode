@@ -1,10 +1,19 @@
-import { Controller, Get, Param, Post, Delete, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Delete,
+  Body,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { WorkspacesService } from './workspaces.service';
 import type { WorkspaceFile } from './workspaces.service';
 
 @Controller('workspaces')
 export class WorkspacesController {
-  constructor(private readonly workspacesService: WorkspacesService) { }
+  constructor(private readonly workspacesService: WorkspacesService) {}
 
   @Get(':workspaceId/files')
   async listFiles(@Param('workspaceId') workspaceId: string) {
@@ -22,7 +31,10 @@ export class WorkspacesController {
   ): Promise<WorkspaceFile> {
     // DecodeURIComponent might be needed if the client sends it encoded scrupulously.
     // But let's assume standard behavior first.
-    return this.workspacesService.getFile(workspaceId, decodeURIComponent(fileId));
+    return this.workspacesService.getFile(
+      workspaceId,
+      decodeURIComponent(fileId),
+    );
   }
 
   @Post(':workspaceId/files/:fileId')
@@ -31,7 +43,11 @@ export class WorkspacesController {
     @Param('fileId') fileId: string,
     @Body() body: { content: string },
   ) {
-    await this.workspacesService.saveFile(workspaceId, decodeURIComponent(fileId), body.content);
+    await this.workspacesService.saveFile(
+      workspaceId,
+      decodeURIComponent(fileId),
+      body.content,
+    );
     return { success: true };
   }
 
@@ -40,7 +56,11 @@ export class WorkspacesController {
     @Param('workspaceId') workspaceId: string,
     @Body() body: { path: string; content?: string },
   ) {
-    const file = await this.workspacesService.createFile(workspaceId, body.path, body.content ?? '');
+    const file = await this.workspacesService.createFile(
+      workspaceId,
+      body.path,
+      body.content ?? '',
+    );
     return file;
   }
 
@@ -50,7 +70,9 @@ export class WorkspacesController {
     @Param('workspaceId') workspaceId: string,
     @Param('fileId') fileId: string,
   ) {
-    await this.workspacesService.deleteFile(workspaceId, decodeURIComponent(fileId));
+    await this.workspacesService.deleteFile(
+      workspaceId,
+      decodeURIComponent(fileId),
+    );
   }
 }
-
