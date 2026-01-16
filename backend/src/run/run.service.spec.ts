@@ -4,6 +4,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { RunService } from './run.service';
 import { RedisService } from '../redis/redis.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { RunsService } from '../runs/runs.service';
 import { RunStatus, RunMetadata } from './run.types';
 
 describe('RunService', () => {
@@ -11,6 +12,7 @@ describe('RunService', () => {
   let redisService: jest.Mocked<RedisService>;
   let workspacesService: jest.Mocked<WorkspacesService>;
   let configService: jest.Mocked<ConfigService>;
+  let runsService: jest.Mocked<RunsService>;
 
   const mockFile = {
     id: 'file-1',
@@ -28,6 +30,14 @@ describe('RunService', () => {
       removeFromSet: jest.fn(),
       getSetMembers: jest.fn(),
       delete: jest.fn(),
+      // Distributed locking mocks
+      acquireLock: jest.fn().mockResolvedValue('mock-token'),
+      releaseLock: jest.fn().mockResolvedValue(true),
+      withLock: jest.fn().mockImplementation(
+        async (_key: string, _ttl: number, fn: () => Promise<any>) => {
+          return fn();
+        },
+      ),
     };
 
     const mockWorkspacesService = {
@@ -38,12 +48,21 @@ describe('RunService', () => {
       get: jest.fn().mockReturnValue(undefined),
     };
 
+    const mockRunsService = {
+      sendStatus: jest.fn(),
+      sendStdout: jest.fn(),
+      sendStderr: jest.fn(),
+      registerClient: jest.fn(),
+      unregisterClient: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RunService,
         { provide: RedisService, useValue: mockRedisService },
         { provide: WorkspacesService, useValue: mockWorkspacesService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: RunsService, useValue: mockRunsService },
       ],
     }).compile();
 
@@ -51,6 +70,7 @@ describe('RunService', () => {
     redisService = module.get(RedisService);
     workspacesService = module.get(WorkspacesService);
     configService = module.get(ConfigService);
+    runsService = module.get(RunsService);
   });
 
   describe('createRun', () => {
