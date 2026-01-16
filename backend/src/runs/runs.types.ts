@@ -1,9 +1,10 @@
 export type RunStatus =
   | 'queued'
   | 'running'
-  | 'succeeded'
+  | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'timed_out';
 
 export type RunStreamEvent =
   | { type: 'stdout'; data: string; timestamp?: string }
@@ -14,4 +15,3 @@ export type RunStreamEvent =
       reason?: string;
       timestamp?: string;
     };
-

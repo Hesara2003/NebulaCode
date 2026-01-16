@@ -1,4 +1,5 @@
 import { apiClient } from "./httpClient";
+import { isAxiosError } from "axios";
 
 export type RunStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "timed_out" | "unknown";
 
@@ -30,8 +31,24 @@ export const createRun = async (payload: CreateRunPayload): Promise<RunResponse>
 };
 
 export const getRunStatus = async (runId: string): Promise<RunResponse> => {
-  const { data } = await apiClient.get<RunResponse>(`/run/${runId}/status`);
-  return data;
+  try {
+    const { data } = await apiClient.get<RunResponse>(`/run/${runId}/status`);
+    return data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      // Treat missing runs as "unknown" instead of throwing, so UI can recover gracefully
+      const now = new Date().toISOString();
+      return {
+        runId,
+        status: "unknown",
+        workspaceId: "",
+        fileId: "",
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+    throw error;
+  }
 };
 
 export const getRunLogs = async (runId: string): Promise<RunLogsResponse> => {

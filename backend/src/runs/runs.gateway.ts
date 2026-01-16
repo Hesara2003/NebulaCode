@@ -44,4 +44,3 @@ export class RunsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return undefined;
   }
 }
-

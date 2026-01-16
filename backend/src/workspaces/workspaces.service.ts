@@ -14,7 +14,7 @@ export interface WorkspaceFile {
 
 @Injectable()
 export class WorkspacesService {
-  constructor(private readonly storageService: StorageService) { }
+  constructor(private readonly storageService: StorageService) {}
 
   async getFile(workspaceId: string, fileId: string): Promise<WorkspaceFile> {
     try {
@@ -24,7 +24,10 @@ export class WorkspacesService {
       // Decode fileId if it's base64 encoded or just use it as relative path
       // For this implementation, we assume fileId IS the relative path (e.g., "src/main.ts")
       const decodedFileId = decodeURIComponent(fileId);
-      const content = await this.storageService.getFile(workspaceId, decodedFileId);
+      const content = await this.storageService.getFile(
+        workspaceId,
+        decodedFileId,
+      );
 
       const extension = decodedFileId.split('.').pop() || 'txt';
       const language = this.getLanguageFromExtension(extension);
@@ -39,12 +42,18 @@ export class WorkspacesService {
         createdAt: new Date().toISOString(), // Storage doesn't track creation time easily without stat
         updatedAt: new Date().toISOString(),
       };
-    } catch (error) {
-      throw new NotFoundException(`File ${fileId} not found in workspace ${workspaceId}`);
+    } catch {
+      throw new NotFoundException(
+        `File ${fileId} not found in workspace ${workspaceId}`,
+      );
     }
   }
 
-  async saveFile(workspaceId: string, fileId: string, content: string): Promise<void> {
+  async saveFile(
+    workspaceId: string,
+    fileId: string,
+    content: string,
+  ): Promise<void> {
     // Ensure workspace exists
     await this.storageService.ensureWorkspace(workspaceId);
 
@@ -52,7 +61,11 @@ export class WorkspacesService {
     await this.storageService.saveFile(workspaceId, decodedFileId, content);
   }
 
-  async createFile(workspaceId: string, filePath: string, content: string = ''): Promise<WorkspaceFile> {
+  async createFile(
+    workspaceId: string,
+    filePath: string,
+    content: string = '',
+  ): Promise<WorkspaceFile> {
     await this.storageService.ensureWorkspace(workspaceId);
     await this.storageService.saveFile(workspaceId, filePath, content);
     return this.getFile(workspaceId, filePath);

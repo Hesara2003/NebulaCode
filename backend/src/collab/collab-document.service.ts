@@ -74,7 +74,10 @@ export class CollaborationDocumentService {
     await this.persistToStorage(documentId, doc, parsed);
   }
 
-  private async hydrateDocument(doc: Doc, metadata: ParsedDocumentId): Promise<void> {
+  private async hydrateDocument(
+    doc: Doc,
+    metadata: ParsedDocumentId,
+  ): Promise<void> {
     try {
       const content = await this.storageService.getFile(
         metadata.workspaceId,
@@ -143,7 +146,9 @@ export class CollaborationDocumentService {
     }
 
     const workspaceId = documentId.slice(0, separatorIndex).trim();
-    const filePath = documentId.slice(separatorIndex + DOCUMENT_ID_SEPARATOR.length).trim();
+    const filePath = documentId
+      .slice(separatorIndex + DOCUMENT_ID_SEPARATOR.length)
+      .trim();
 
     if (!workspaceId || !filePath) {
       return null;

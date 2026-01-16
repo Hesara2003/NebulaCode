@@ -2,6 +2,11 @@
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import React, { useEffect, useRef } from "react";
+// three.js is only used client-side for visual effects; type it as any to avoid requiring @types/three
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// three.js is only used client-side for visual effects; silence missing type declarations.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error - three has no type declarations in this project
 import * as THREE from "three";
 
 type DottedSurfaceProps = Omit<React.ComponentProps<'div'>, 'ref'>;
@@ -184,11 +189,11 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
         cancelAnimationFrame(sceneRef.current.animationId);
 
         // Clean up Three.js objects
-        sceneRef.current.scene.traverse((object) => {
+        sceneRef.current.scene.traverse((object: any) => {
           if (object instanceof THREE.Points) {
             object.geometry.dispose();
             if (Array.isArray(object.material)) {
-              object.material.forEach((material) => material.dispose());
+              object.material.forEach((material: any) => material.dispose());
             } else {
               object.material.dispose();
             }

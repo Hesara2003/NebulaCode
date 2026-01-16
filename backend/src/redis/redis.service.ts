@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -19,7 +24,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const redisUrl = this.configService.get<string>('REDIS_URL');
 
     if (!redisUrl) {
-      this.logger.warn('REDIS_URL is not configured. Using in-memory run store.');
+      this.logger.warn(
+        'REDIS_URL is not configured. Using in-memory run store.',
+      );
       return;
     }
 
@@ -33,7 +40,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('Connected to Redis.');
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`Failed to connect to Redis. Falling back to in-memory store: ${err.message}`, err.stack);
+      this.logger.error(
+        `Failed to connect to Redis. Falling back to in-memory store: ${err.message}`,
+        err.stack,
+      );
       this.client?.disconnect();
       this.client = null;
     }
@@ -56,7 +66,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getJson<T>(key: string): Promise<T | null> {
-    const payload = this.client ? await this.client.get(key) : this.fallbackStore.get(key);
+    const payload = this.client
+      ? await this.client.get(key)
+      : this.fallbackStore.get(key);
     if (!payload) {
       return null;
     }
@@ -79,7 +91,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       await this.client.sadd(key, member);
     } else {
       const existing = this.fallbackStore.get(key);
-      const set = existing ? new Set<string>(JSON.parse(existing)) : new Set<string>();
+      const set = existing
+        ? new Set<string>(JSON.parse(existing))
+        : new Set<string>();
       set.add(member);
       this.fallbackStore.set(key, JSON.stringify([...set]));
     }

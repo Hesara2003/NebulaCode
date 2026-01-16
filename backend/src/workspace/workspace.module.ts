@@ -8,4 +8,4 @@ import { StorageModule } from '../storage/storage.module';
   controllers: [WorkspaceController],
   providers: [WorkspaceService],
 })
-export class WorkspaceModule { }
+export class WorkspaceModule {}

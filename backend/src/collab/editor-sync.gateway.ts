@@ -191,9 +191,9 @@ export class EditorSyncGateway
       const serverTimestamp = Date.now();
 
       await this.documents.applyUpdate(documentId, update);
-      
+
       const roomName = this.roomName(documentId);
-      
+
       client.broadcast.to(roomName).emit('document:update', {
         documentId,
         update,

@@ -24,7 +24,7 @@ export class WsAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid websocket token');
     }
 
-    client.data = { ...(client.data || {}), token };
+    client.data = { ...((client.data as { token?: string }) || {}), token };
     return true;
   }
 
@@ -39,7 +39,11 @@ export class WsAuthGuard implements CanActivate {
       return queryToken;
     }
 
-    const authToken = (client.handshake as any)?.auth?.token;
+    const auth = (client.handshake.auth ?? client.handshake.query) as Record<
+      string,
+      unknown
+    >;
+    const authToken = auth.token;
     if (typeof authToken === 'string') {
       return authToken;
     }
@@ -47,4 +51,3 @@ export class WsAuthGuard implements CanActivate {
     return undefined;
   }
 }
-

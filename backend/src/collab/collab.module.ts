@@ -8,7 +8,11 @@ import { StorageModule } from '../storage/storage.module';
 @Module({
   imports: [StorageModule],
   controllers: [CollaborationController],
-  providers: [CollaborationConfigService, CollaborationDocumentService, EditorSyncGateway],
+  providers: [
+    CollaborationConfigService,
+    CollaborationDocumentService,
+    EditorSyncGateway,
+  ],
   exports: [EditorSyncGateway],
 })
 export class CollabModule {}
