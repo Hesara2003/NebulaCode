@@ -18,6 +18,7 @@ export interface RunMetadata {
   updatedAt: string;
   startedAt?: string; // Set when status transitions to Running
   containerId?: string; // Docker container ID for cleanup
+  exitCode?: number; // Process exit code (0 = success)
 }
 
 export interface RunLogsPayload {
