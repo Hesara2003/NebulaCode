@@ -7,17 +7,22 @@ export const TypingAnimation = ({ text, className }: { text: string; className?:
   const [i, setI] = useState(0);
 
   useEffect(() => {
-    const typingEffect = setInterval(() => {
-      if (i < text.length) {
-        setDisplayedText((prevState) => prevState + text.charAt(i));
-        setI(i + 1);
-      } else {
-        clearInterval(typingEffect);
-      }
-    }, 50); // Speed of typing
+    setDisplayedText("");
+    setI(0);
+  }, [text]);
+
+  useEffect(() => {
+    if (i >= text.length) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setDisplayedText((prevState) => prevState + text.charAt(i));
+      setI((prev) => prev + 1);
+    }, 50);
 
     return () => {
-      clearInterval(typingEffect);
+      clearTimeout(timeout);
     };
   }, [i, text]);
 
